@@ -1,27 +1,42 @@
 package redirectfromshortlinkusecase
 
 import (
-	"fmt"
-	redirectfromshortlinkpkg "go-musthave-shortener/pkg/redirectFromShortLinkPkg"
+	"net/http"
+
+	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 )
 
 type Usecase struct {
 	linkRepo LinkRepo
+	logger   *zap.Logger
 }
 
-func New(linkRepo LinkRepo) *Usecase {
+func New(linkRepo LinkRepo, logger *zap.Logger) *Usecase {
 	return &Usecase{
 		linkRepo: linkRepo,
+		logger:   logger,
 	}
 }
 
-func (u *Usecase) Execute(request redirectfromshortlinkpkg.Request) (redirectfromshortlinkpkg.Response, error) {
-	originalURL, err := u.linkRepo.Get(request.Alias)
-	if err != nil {
-		return redirectfromshortlinkpkg.Response{}, fmt.Errorf("failed to get URL for alias: %w", err)
+
+func (u *Usecase) Execute(c *gin.Context) {
+	alias := c.Param("id")
+	if alias == "" {
+		u.logger.Info("Empty alias parameter in redirect request")
+		c.String(http.StatusBadRequest, "Bad Request")
+		return
 	}
 
-	return redirectfromshortlinkpkg.Response{
-		OriginalURL: originalURL,
-	}, nil
+	
+	originalURL, err := u.linkRepo.Get(alias)
+	if err != nil {
+		u.logger.Info("Failed to find original URL for alias", 
+			zap.Error(err), 
+			zap.String("alias", alias))
+		c.String(http.StatusBadRequest, "Bad Request")
+		return
+	}
+
+	c.Redirect(http.StatusTemporaryRedirect, originalURL)
 }
