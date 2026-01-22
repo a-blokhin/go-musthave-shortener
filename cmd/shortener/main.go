@@ -17,7 +17,7 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	cfg := config.ParseFlags()
+	cfg := config.ParseConfig()
 
 	di := app.DI{}
 	di.Init(cfg)

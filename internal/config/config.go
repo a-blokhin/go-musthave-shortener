@@ -2,21 +2,48 @@ package config
 
 import (
 	"flag"
+	"log"
+
+	"github.com/caarlos0/env/v11"
 )
 
 type Config struct {
-	ServerAddress string
-	BaseURL       string
+	ServerAddress string `env:"SERVER_ADDRESS"`
+	BaseURL       string `env:"BASE_URL"`
 }
 
-func ParseFlags() *Config {
-	serverAddress := flag.String("a", "localhost:8080", "server address")
-	baseURL := flag.String("b", "http://localhost:8080", "base URL for shortened links")
+func ParseConfig() (config *Config) {
 
-	flag.Parse()
+	defaultServerAddress := "localhost:8080"
+	defaultBaseURL := "http://localhost:8080"
 
-	return &Config{
-		ServerAddress: *serverAddress,
-		BaseURL:       *baseURL,
+	if !flag.Parsed() {
+		serverAddressFlag := flag.String("a", defaultServerAddress, "server address")
+		baseURLFlag := flag.String("b", defaultBaseURL, "base URL for shortened links")
+		flag.Parse()
+
+		config = &Config{
+			ServerAddress: *serverAddressFlag,
+			BaseURL:       *baseURLFlag,
+		}
+	} else {
+		config = &Config{
+			ServerAddress: defaultServerAddress,
+			BaseURL:       defaultBaseURL,
+		}
 	}
+
+	envConfig := &Config{}
+	if err := env.Parse(envConfig); err != nil {
+		log.Printf("Failed to parse environment variables: %v", err)
+	}
+
+	if envConfig.ServerAddress != "" {
+		config.ServerAddress = envConfig.ServerAddress
+	}
+	if envConfig.BaseURL != "" {
+		config.BaseURL = envConfig.BaseURL
+	}
+
+	return config
 }
