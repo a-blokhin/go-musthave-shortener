@@ -34,7 +34,7 @@ func (u *Usecase) Execute(c *gin.Context) {
 		u.logger.Info("Failed to find original URL for alias", 
 			zap.Error(err), 
 			zap.String("alias", alias))
-		c.String(http.StatusBadRequest, "Bad Request")
+		c.String(http.StatusNotFound, "alias %q not found", alias)
 		return
 	}
 

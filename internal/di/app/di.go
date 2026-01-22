@@ -7,16 +7,17 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
-	shorterapi "go-musthave-shortener/internal/api/shorterApi"
-	createshortlinkusecase "go-musthave-shortener/internal/handler/createShortLinkUsecase"
-	redirectfromshortlinkusecase "go-musthave-shortener/internal/handler/redirectFromShortLinkUsecase"
-	shorterrepository "go-musthave-shortener/internal/repository/shorterRepository"
+	"go-musthave-shortener/internal/api/shorterapi"
+	"go-musthave-shortener/internal/config"
+	"go-musthave-shortener/internal/repository/shorterrepository"
+	"go-musthave-shortener/internal/usecase/createshortlinkusecase"
+	"go-musthave-shortener/internal/usecase/redirectfromshortlinkusecase"
 )
 
 type DI struct {
 	router *gin.Engine
-	api    *shorterapi.ShorterAPI
-	config *Config
+	api    *shorterapi.ShortAPI
+	config *config.Config
 	logger *zap.Logger
 
 	usecases struct {
@@ -25,19 +26,21 @@ type DI struct {
 	}
 
 	repos struct {
-		shorterRepository *shorterrepository.Repo
+		shorterRepo *shorterrepository.Repo
 	}
 
 	httpServer *http.Server
 }
 
-func (d *DI) Init(config *Config) {
+func (d *DI) Init(config *config.Config) {
 	d.config = config
-	
-	
+
 	loggerConfig := zap.NewProductionConfig()
 	loggerConfig.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
-	logger, _ := loggerConfig.Build()
+	logger, err := loggerConfig.Build()
+	if err != nil {
+		panic(err)
+	}
 	d.logger = logger
 
 	d.initRepos()
@@ -47,12 +50,12 @@ func (d *DI) Init(config *Config) {
 }
 
 func (d *DI) initRepos() {
-	d.repos.shorterRepository = shorterrepository.New()
+	d.repos.shorterRepo = shorterrepository.New()
 }
 
 func (d *DI) initUsecases() {
-	d.usecases.createShortLink = createshortlinkusecase.New(d.repos.shorterRepository, d.logger, d.config.BaseURL)
-	d.usecases.redirectFromShortLink = redirectfromshortlinkusecase.New(d.repos.shorterRepository, d.logger)
+	d.usecases.createShortLink = createshortlinkusecase.New(d.repos.shorterRepo, d.logger, d.config.BaseURL)
+	d.usecases.redirectFromShortLink = redirectfromshortlinkusecase.New(d.repos.shorterRepo, d.logger)
 }
 
 func (d *DI) initMux() {

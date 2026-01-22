@@ -18,10 +18,9 @@ func main() {
 	defer cancel()
 
 	cfg := config.ParseFlags()
-	diConfig := app.NewConfig(cfg.ServerAddress, cfg.BaseURL)
 
 	di := app.DI{}
-	di.Init(diConfig)
+	di.Init(cfg)
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
@@ -29,7 +28,7 @@ func main() {
 	errCh := make(chan error, 1)
 
 	go func() {
-		log.Printf("Starting server on %s", diConfig.ServerAddress)
+		log.Printf("Starting server on %s", cfg.ServerAddress)
 		if err := di.StartServer(); err != nil {
 			errCh <- fmt.Errorf("server error: %w", err)
 		}
