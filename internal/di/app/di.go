@@ -9,6 +9,7 @@ import (
 
 	"go-musthave-shortener/internal/api/shorterapi"
 	"go-musthave-shortener/internal/config"
+	"go-musthave-shortener/internal/middleware"
 	"go-musthave-shortener/internal/repository/shorterrepository"
 	"go-musthave-shortener/internal/usecase/createshortlinkusecase"
 	"go-musthave-shortener/internal/usecase/redirectfromshortlinkusecase"
@@ -36,7 +37,7 @@ func (d *DI) Init(config *config.Config) {
 	d.config = config
 
 	loggerConfig := zap.NewProductionConfig()
-	loggerConfig.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+	loggerConfig.Level = zap.NewAtomicLevelAt(zap.InfoLevel)
 	logger, err := loggerConfig.Build()
 	if err != nil {
 		panic(err)
@@ -62,6 +63,7 @@ func (d *DI) initMux() {
 	gin.SetMode(gin.ReleaseMode)
 	d.router = gin.New()
 	d.router.Use(gin.Recovery())
+	d.router.Use(middleware.LoggingMiddleware(d.logger))
 }
 
 func (d *DI) initAPI() {
