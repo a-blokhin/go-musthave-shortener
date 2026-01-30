@@ -11,6 +11,7 @@ import (
 	"go-musthave-shortener/internal/config"
 	"go-musthave-shortener/internal/middleware"
 	"go-musthave-shortener/internal/repository/shorterrepository"
+	"go-musthave-shortener/internal/usecase/createshortlinkjsonusecase"
 	"go-musthave-shortener/internal/usecase/createshortlinkusecase"
 	"go-musthave-shortener/internal/usecase/redirectfromshortlinkusecase"
 )
@@ -23,6 +24,7 @@ type DI struct {
 
 	usecases struct {
 		createShortLink       *createshortlinkusecase.Usecase
+		createShortLinkJSON   *createshortlinkjsonusecase.Usecase
 		redirectFromShortLink *redirectfromshortlinkusecase.Usecase
 	}
 
@@ -56,6 +58,7 @@ func (d *DI) initRepos() {
 
 func (d *DI) initUsecases() {
 	d.usecases.createShortLink = createshortlinkusecase.New(d.repos.shorterRepo, d.logger, d.config.BaseURL)
+	d.usecases.createShortLinkJSON = createshortlinkjsonusecase.New(d.repos.shorterRepo, d.logger, d.config.BaseURL)
 	d.usecases.redirectFromShortLink = redirectfromshortlinkusecase.New(d.repos.shorterRepo, d.logger)
 }
 
@@ -70,6 +73,7 @@ func (d *DI) initAPI() {
 	d.api = shorterapi.New(
 		d.config.BaseURL,
 		d.usecases.createShortLink,
+		d.usecases.createShortLinkJSON,
 		d.usecases.redirectFromShortLink,
 	)
 	d.api.RegisterHandlers(d.router)
