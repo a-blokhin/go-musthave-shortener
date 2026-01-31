@@ -66,6 +66,7 @@ func (d *DI) initMux() {
 	gin.SetMode(gin.ReleaseMode)
 	d.router = gin.New()
 	d.router.Use(gin.Recovery())
+	d.router.Use(middleware.GzipMiddleware())
 	d.router.Use(middleware.LoggingMiddleware(d.logger))
 }
 
