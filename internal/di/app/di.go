@@ -10,6 +10,8 @@ import (
 	"go-musthave-shortener/internal/api/shorterapi"
 	"go-musthave-shortener/internal/config"
 	"go-musthave-shortener/internal/middleware"
+	"go-musthave-shortener/internal/repository"
+	"go-musthave-shortener/internal/repository/shorterfilerepository"
 	"go-musthave-shortener/internal/repository/shorterrepository"
 	"go-musthave-shortener/internal/usecase/createshortlinkjsonusecase"
 	"go-musthave-shortener/internal/usecase/createshortlinkusecase"
@@ -29,7 +31,7 @@ type DI struct {
 	}
 
 	repos struct {
-		shorterRepo *shorterrepository.Repo
+		shorterRepo repository.LinkRepository
 	}
 
 	httpServer *http.Server
@@ -53,7 +55,13 @@ func (d *DI) Init(config *config.Config) {
 }
 
 func (d *DI) initRepos() {
-	d.repos.shorterRepo = shorterrepository.New()
+	if d.config.FileStoragePath != "" {
+		d.logger.Info("Using file storage", zap.String("path", d.config.FileStoragePath))
+		d.repos.shorterRepo = shorterfilerepository.New(d.config.FileStoragePath)
+	} else {
+		d.logger.Info("Using in-memory storage")
+		d.repos.shorterRepo = shorterrepository.New()
+	}
 }
 
 func (d *DI) initUsecases() {
