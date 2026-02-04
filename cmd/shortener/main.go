@@ -20,7 +20,9 @@ func main() {
 	cfg := config.ParseConfig()
 
 	di := app.DI{}
-	di.Init(cfg)
+	if err := di.Init(cfg); err != nil {
+		log.Fatalf("Failed to initialize application: %v", err)
+	}
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
