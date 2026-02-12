@@ -1,6 +1,7 @@
 package shorterfilerepository
 
 import (
+	"maps"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -47,7 +48,7 @@ func (r *FileRepo) Add(url string) (string, error) {
 		return r.linkToShort[url], nil
 	}
 
-	const maxAttempts = 100
+	const maxAttempts = 10
 
 	for range maxAttempts {
 		alias := generateAlias(r.aliasLength)
@@ -67,6 +68,55 @@ func (r *FileRepo) Add(url string) (string, error) {
 	}
 
 	return "", errors.New("failed to generate unique alias")
+}
+
+func (r *FileRepo) AddBatch(urls []string) ([]string, error) {
+	if len(urls) == 0 {
+		return []string{}, nil
+	}
+
+	r.rwMutex.Lock()
+	defer r.rwMutex.Unlock()
+
+	originalShortToLink := make(map[string]string, len(r.shortToLink))
+	originalLinkToShort := make(map[string]string, len(r.linkToShort))
+
+	maps.Copy(originalShortToLink, r.shortToLink)
+	maps.Copy(originalLinkToShort, r.linkToShort)
+
+	result := make([]string, len(urls))
+	const maxAttempts = 10
+
+	for i, url := range urls {
+		if r.hasLink(url) {
+			result[i] = r.linkToShort[url]
+			continue
+		}
+
+		for range maxAttempts {
+			alias := generateAlias(r.aliasLength)
+			if !r.hasAlias(alias) {
+				r.shortToLink[alias] = url
+				r.linkToShort[url] = alias
+				result[i] = alias
+				break
+			}
+		}
+
+		if result[i] == "" {
+			r.shortToLink = originalShortToLink
+			r.linkToShort = originalLinkToShort
+			return nil, errors.New("failed to generate unique alias for one or more URLs")
+		}
+	}
+
+	if err := r.saveToFile(); err != nil {
+		r.shortToLink = originalShortToLink
+		r.linkToShort = originalLinkToShort
+		return nil, fmt.Errorf("failed to save to file: %w", err)
+	}
+
+	return result, nil
 }
 
 func (r *FileRepo) Get(alias string) (string, error) {

@@ -32,7 +32,7 @@ func (r *Repo) Add(url string) (string, error) {
 		return r.linkToShort[url], nil
 	}
 
-	const maxAttempts = 100
+	const maxAttempts = 10
 
 	for range maxAttempts {
 		alias := generateAlias(r.aliasLength)
@@ -44,6 +44,42 @@ func (r *Repo) Add(url string) (string, error) {
 	}
 
 	return "", errors.New("failed to generate unique alias")
+}
+
+func (r *Repo) AddBatch(urls []string) ([]string, error) {
+	if len(urls) == 0 {
+		return []string{}, nil
+	}
+
+	r.rwMutex.Lock()
+	defer r.rwMutex.Unlock()
+
+	result := make([]string, len(urls))
+	const maxAttempts = 10
+
+	for i, url := range urls {
+
+		if r.hasLink(url) {
+			result[i] = r.linkToShort[url]
+			continue
+		}
+
+		for range maxAttempts {
+			alias := generateAlias(r.aliasLength)
+			if !r.hasAlias(alias) {
+				r.shortToLink[alias] = url
+				r.linkToShort[url] = alias
+				result[i] = alias
+				break
+			}
+		}
+
+		if result[i] == "" {
+			return nil, errors.New("failed to generate unique alias for one or more URLs")
+		}
+	}
+
+	return result, nil
 }
 
 func (r *Repo) Get(alias string) (string, error) {
