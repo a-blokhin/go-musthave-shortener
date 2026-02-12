@@ -2,11 +2,13 @@ package createshortlinkjsonusecase
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
+	"go-musthave-shortener/internal/model"
 	"go-musthave-shortener/pkg/createshortlinkjsonpkg"
 )
 
@@ -26,9 +28,9 @@ func New(linkRepo LinkRepo, logger *zap.Logger, baseURL string) *Usecase {
 
 func (u *Usecase) Execute(c *gin.Context) {
 	var req createshortlinkjsonpkg.Request
-	
+
 	if err := json.NewDecoder(c.Request.Body).Decode(&req); err != nil {
-		u.logger.Error("Failed to decode JSON request", 
+		u.logger.Error("Failed to decode JSON request",
 			zap.Error(err))
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON"})
 		return
@@ -43,8 +45,17 @@ func (u *Usecase) Execute(c *gin.Context) {
 
 	alias, err := u.linkRepo.Add(req.URL)
 	if err != nil {
-		u.logger.Error("Failed to create short URL", 
-			zap.Error(err), 
+		if errors.Is(err, model.ErrDuplicateURL) {
+			shortURL := u.baseURL + "/" + alias
+			resp := createshortlinkjsonpkg.Response{
+				Result: shortURL,
+			}
+			c.JSON(http.StatusConflict, resp)
+			return
+		}
+
+		u.logger.Error("Failed to create short URL",
+			zap.Error(err),
 			zap.String("url", req.URL))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
 		return

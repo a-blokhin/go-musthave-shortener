@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"go-musthave-shortener/internal/model"
 	"math/rand/v2"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -32,21 +34,11 @@ func New(pool *pgxpool.Pool, logger *zap.Logger) *PostgresRepo {
 func (r *PostgresRepo) Add(url string) (string, error) {
 	ctx := context.Background()
 
-	var existingShortURL string
-	err := r.pool.QueryRow(ctx, "SELECT short_url FROM urls WHERE original_url = $1", url).Scan(&existingShortURL)
-	if err == nil {
-		return existingShortURL, nil
-	}
-	if !errors.Is(err, pgx.ErrNoRows) {
-		r.logger.Error("Failed to check existing URL", zap.Error(err))
-		return "", fmt.Errorf("failed to check existing URL: %w", err)
-	}
-
 	const maxAttempts = 10
 	for range maxAttempts {
 		alias := generateAlias(r.aliasLength)
 
-		_, err = r.pool.Exec(ctx,
+		_, err := r.pool.Exec(ctx,
 			"INSERT INTO urls (id, short_url, original_url) VALUES ($1, $2, $3)",
 			uuid.New(), alias, url)
 
@@ -54,8 +46,20 @@ func (r *PostgresRepo) Add(url string) (string, error) {
 			return alias, nil
 		}
 
-		if isUniqueConstraintError(err) {
-			continue
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			if pgErr.Code == pgerrcode.UniqueViolation {
+				if pgErr.ConstraintName == "idx_urls_original_url_unique" {
+					var existingShortURL string
+					queryErr := r.pool.QueryRow(ctx, "SELECT short_url FROM urls WHERE original_url = $1", url).Scan(&existingShortURL)
+					if queryErr != nil {
+						r.logger.Error("Failed to query existing short URL after duplicate", zap.Error(queryErr))
+						return "", fmt.Errorf("failed to query existing short URL: %w", queryErr)
+					}
+					return existingShortURL, model.ErrDuplicateURL
+				}
+				continue
+			}
 		}
 
 		r.logger.Error("Failed to insert URL", zap.Error(err))

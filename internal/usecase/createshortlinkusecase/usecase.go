@@ -1,6 +1,8 @@
 package createshortlinkusecase
 
 import (
+	"errors"
+	"go-musthave-shortener/internal/model"
 	"io"
 	"net/http"
 	"strings"
@@ -23,11 +25,10 @@ func New(linkRepo LinkRepo, logger *zap.Logger, baseURL string) *Usecase {
 	}
 }
 
-
 func (u *Usecase) Execute(c *gin.Context) {
 	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
-		u.logger.Error("Failed to read request body", 
+		u.logger.Error("Failed to read request body",
 			zap.Error(err))
 		c.String(http.StatusBadRequest, "Bad Request")
 		return
@@ -41,11 +42,15 @@ func (u *Usecase) Execute(c *gin.Context) {
 		return
 	}
 
-	
 	alias, err := u.linkRepo.Add(url)
 	if err != nil {
-		u.logger.Error("Failed to create short URL", 
-			zap.Error(err), 
+		if errors.Is(err, model.ErrDuplicateURL) {
+			c.String(http.StatusConflict, u.baseURL+"/"+alias)
+			return
+		}
+
+		u.logger.Error("Failed to create short URL",
+			zap.Error(err),
 			zap.String("url", url))
 		c.String(http.StatusInternalServerError, "Internal Server Error")
 		return
