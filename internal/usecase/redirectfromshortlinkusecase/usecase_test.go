@@ -6,32 +6,18 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/mock"
 	"go.uber.org/zap"
+
+	"go-musthave-shortener/internal/usecase/redirectfromshortlinkusecase/mocks"
 )
-
-type MockLinkRepo struct {
-	GetFunc func(alias string) (string, error)
-}
-
-func (m *MockLinkRepo) Get(alias string) (string, error) {
-	if m.GetFunc != nil {
-		return m.GetFunc(alias)
-	}
-	return "", nil
-}
 
 func TestRedirectToOriginalURL_Success(t *testing.T) {
 	testAlias := "abcd1234"
 	originalURL := "https://example.org/long/path"
 
-	mockRepo := &MockLinkRepo{
-		GetFunc: func(alias string) (string, error) {
-			if alias != testAlias {
-				t.Errorf("Expected alias %s, got %s", testAlias, alias)
-			}
-			return originalURL, nil
-		},
-	}
+	mockRepo := mocks.NewLinkRepo(t)
+	mockRepo.On("Get", mock.Anything, testAlias).Return(originalURL, nil)
 
 	usecase := New(mockRepo, zap.NewNop())
 
@@ -55,7 +41,7 @@ func TestRedirectToOriginalURL_Success(t *testing.T) {
 }
 
 func TestRedirectToOriginalURL_EmptyAlias(t *testing.T) {
-	mockRepo := &MockLinkRepo{}
+	mockRepo := mocks.NewLinkRepo(t)
 
 	usecase := New(mockRepo, zap.NewNop())
 
@@ -77,11 +63,8 @@ func TestRedirectToOriginalURL_EmptyAlias(t *testing.T) {
 func TestRedirectToOriginalURL_UsecaseError(t *testing.T) {
 	testAlias := "abcd1234"
 
-	mockRepo := &MockLinkRepo{
-		GetFunc: func(alias string) (string, error) {
-			return "", http.ErrMissingFile
-		},
-	}
+	mockRepo := mocks.NewLinkRepo(t)
+	mockRepo.On("Get", mock.Anything, testAlias).Return("", http.ErrMissingFile)
 
 	usecase := New(mockRepo, zap.NewNop())
 

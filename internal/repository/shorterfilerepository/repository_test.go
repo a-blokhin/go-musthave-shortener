@@ -1,6 +1,7 @@
 package shorterfilerepository
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -42,7 +43,7 @@ func TestFileRepo_Add(t *testing.T) {
 	repo := New(filePath)
 	url := "https://example.com"
 
-	alias, err := repo.Add(url)
+	alias, err := repo.Add(context.TODO(), url)
 	if err != nil {
 		t.Fatalf("Add() returned an error: %v", err)
 	}
@@ -85,7 +86,7 @@ func TestFileRepo_Add(t *testing.T) {
 		t.Errorf("expected OriginalURL to be %s, got %s", url, urlDataList[0].OriginalURL)
 	}
 
-	sameAlias, err := repo.Add(url)
+	sameAlias, err := repo.Add(context.TODO(), url)
 	if err != nil {
 		t.Fatalf("Add() for same URL returned an error: %v", err)
 	}
@@ -102,12 +103,12 @@ func TestFileRepo_Get(t *testing.T) {
 	repo := New(filePath)
 	url := "https://example.com"
 
-	alias, err := repo.Add(url)
+	alias, err := repo.Add(context.TODO(), url)
 	if err != nil {
 		t.Fatalf("Add() returned an error: %v", err)
 	}
 
-	retrievedURL, err := repo.Get(alias)
+	retrievedURL, err := repo.Get(context.TODO(), alias)
 	if err != nil {
 		t.Fatalf("Get() returned an error: %v", err)
 	}
@@ -116,7 +117,7 @@ func TestFileRepo_Get(t *testing.T) {
 		t.Errorf("expected URL %s, got %s", url, retrievedURL)
 	}
 
-	_, err = repo.Get("nonexistent-alias")
+	_, err = repo.Get(context.TODO(), "nonexistent-alias")
 	if err == nil {
 		t.Error("expected error for non-existent alias, got nil")
 	}
@@ -135,7 +136,7 @@ func TestFileRepo_Persistence(t *testing.T) {
 	}
 
 	for url := range urls {
-		alias, err := repo1.Add(url)
+		alias, err := repo1.Add(context.TODO(), url)
 		if err != nil {
 			t.Fatalf("Add() returned an error: %v", err)
 		}
@@ -145,7 +146,7 @@ func TestFileRepo_Persistence(t *testing.T) {
 	repo2 := New(filePath)
 
 	for url, alias := range urls {
-		retrievedURL, err := repo2.Get(alias)
+		retrievedURL, err := repo2.Get(context.TODO(), alias)
 		if err != nil {
 			t.Errorf("Get() returned an error for alias %s: %v", alias, err)
 		}
@@ -154,7 +155,7 @@ func TestFileRepo_Persistence(t *testing.T) {
 			t.Errorf("expected URL %s, got %s", url, retrievedURL)
 		}
 
-		sameAlias, err := repo2.Add(url)
+		sameAlias, err := repo2.Add(context.TODO(), url)
 		if err != nil {
 			t.Fatalf("Add() returned an error: %v", err)
 		}
@@ -165,14 +166,14 @@ func TestFileRepo_Persistence(t *testing.T) {
 	}
 
 	newURL := "https://stackoverflow.com"
-	newAlias, err := repo2.Add(newURL)
+	newAlias, err := repo2.Add(context.TODO(), newURL)
 	if err != nil {
 		t.Fatalf("Add() returned an error: %v", err)
 	}
 
 	repo3 := New(filePath)
 
-	retrievedURL, err := repo3.Get(newAlias)
+	retrievedURL, err := repo3.Get(context.TODO(), newAlias)
 	if err != nil {
 		t.Fatalf("Get() returned an error: %v", err)
 	}
@@ -182,7 +183,7 @@ func TestFileRepo_Persistence(t *testing.T) {
 	}
 
 	for url, alias := range urls {
-		retrievedURL, err := repo3.Get(alias)
+		retrievedURL, err := repo3.Get(context.TODO(), alias)
 		if err != nil {
 			t.Errorf("Get() returned an error for alias %s: %v", alias, err)
 		}
@@ -208,12 +209,12 @@ func TestFileRepo_EmptyFile(t *testing.T) {
 	}
 
 	url := "https://example.com"
-	alias, err := repo.Add(url)
+	alias, err := repo.Add(context.TODO(), url)
 	if err != nil {
 		t.Fatalf("Add() returned an error: %v", err)
 	}
 
-	retrievedURL, err := repo.Get(alias)
+	retrievedURL, err := repo.Get(context.TODO(), alias)
 	if err != nil {
 		t.Fatalf("Get() returned an error: %v", err)
 	}
@@ -254,7 +255,7 @@ func TestFileRepo_NonExistentFile(t *testing.T) {
 	}
 
 	url := "https://example.com"
-	alias, err := repo.Add(url)
+	alias, err := repo.Add(context.TODO(), url)
 	if err != nil {
 		t.Fatalf("Add() returned an error: %v", err)
 	}
@@ -263,7 +264,7 @@ func TestFileRepo_NonExistentFile(t *testing.T) {
 		t.Error("file should be created after Add()")
 	}
 
-	retrievedURL, err := repo.Get(alias)
+	retrievedURL, err := repo.Get(context.TODO(), alias)
 	if err != nil {
 		t.Fatalf("Get() returned an error: %v", err)
 	}
@@ -284,7 +285,7 @@ func TestFileRepo_hasLink(t *testing.T) {
 		t.Error("hasLink() should return false for non-existent URL")
 	}
 
-	_, err := repo.Add(url)
+	_, err := repo.Add(context.TODO(), url)
 	if err != nil {
 		t.Fatalf("Add() returned an error: %v", err)
 	}
@@ -301,7 +302,7 @@ func TestFileRepo_hasAlias(t *testing.T) {
 	repo := New(filePath)
 	url := "https://example.com"
 
-	alias, err := repo.Add(url)
+	alias, err := repo.Add(context.TODO(), url)
 	if err != nil {
 		t.Fatalf("Add() returned an error: %v", err)
 	}
@@ -351,7 +352,7 @@ func TestFileRepo_JSONFormat(t *testing.T) {
 	}
 
 	for i := range urls {
-		alias, err := repo.Add(urls[i].url)
+		alias, err := repo.Add(context.TODO(), urls[i].url)
 		if err != nil {
 			t.Fatalf("Add() returned an error: %v", err)
 		}

@@ -14,17 +14,9 @@ import (
 	"go.uber.org/zap"
 
 	"go-musthave-shortener/internal/usecase/createshortlinkjsonusecase"
+	"go-musthave-shortener/internal/usecase/createshortlinkjsonusecase/mocks"
 	"go-musthave-shortener/pkg/createshortlinkjsonpkg"
 )
-
-type MockLinkRepo struct {
-	mock.Mock
-}
-
-func (m *MockLinkRepo) Add(url string) (string, error) {
-	args := m.Called(url)
-	return args.String(0), args.Error(1)
-}
 
 func TestUsecase_Execute(t *testing.T) {
 	logger := zap.NewNop()
@@ -33,7 +25,7 @@ func TestUsecase_Execute(t *testing.T) {
 	tests := []struct {
 		name           string
 		requestBody    interface{}
-		mockSetup      func(*MockLinkRepo)
+		mockSetup      func(*mocks.LinkRepo)
 		expectedStatus int
 		expectedBody   interface{}
 	}{
@@ -42,8 +34,8 @@ func TestUsecase_Execute(t *testing.T) {
 			requestBody: createshortlinkjsonpkg.Request{
 				URL: "https://practicum.yandex.ru",
 			},
-			mockSetup: func(m *MockLinkRepo) {
-				m.On("Add", "https://practicum.yandex.ru").Return("abc123", nil)
+			mockSetup: func(m *mocks.LinkRepo) {
+				m.On("Add", mock.Anything, "https://practicum.yandex.ru").Return("abc123", nil)
 			},
 			expectedStatus: http.StatusCreated,
 			expectedBody: createshortlinkjsonpkg.Response{
@@ -55,14 +47,14 @@ func TestUsecase_Execute(t *testing.T) {
 			requestBody: createshortlinkjsonpkg.Request{
 				URL: "",
 			},
-			mockSetup:      func(m *MockLinkRepo) {},
+			mockSetup:      func(m *mocks.LinkRepo) {},
 			expectedStatus: http.StatusBadRequest,
 			expectedBody:   map[string]string{"error": "URL is required"},
 		},
 		{
 			name:           "invalid JSON",
 			requestBody:    "invalid json",
-			mockSetup:      func(m *MockLinkRepo) {},
+			mockSetup:      func(m *mocks.LinkRepo) {},
 			expectedStatus: http.StatusBadRequest,
 			expectedBody:   map[string]string{"error": "Invalid JSON"},
 		},
@@ -71,8 +63,8 @@ func TestUsecase_Execute(t *testing.T) {
 			requestBody: createshortlinkjsonpkg.Request{
 				URL: "https://example.com",
 			},
-			mockSetup: func(m *MockLinkRepo) {
-				m.On("Add", "https://example.com").Return("", errors.New("database error"))
+			mockSetup: func(m *mocks.LinkRepo) {
+				m.On("Add", mock.Anything, "https://example.com").Return("", errors.New("database error"))
 			},
 			expectedStatus: http.StatusInternalServerError,
 			expectedBody:   map[string]string{"error": "Internal Server Error"},
@@ -82,7 +74,7 @@ func TestUsecase_Execute(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Setup
-			mockRepo := new(MockLinkRepo)
+			mockRepo := mocks.NewLinkRepo(t)
 			tt.mockSetup(mockRepo)
 
 			usecase := createshortlinkjsonusecase.New(mockRepo, logger, baseURL)
@@ -117,7 +109,6 @@ func TestUsecase_Execute(t *testing.T) {
 
 			assert.Equal(t, expectedBodyInterface, actualBody)
 
-			mockRepo.AssertExpectations(t)
 		})
 	}
 }

@@ -31,9 +31,7 @@ func New(pool *pgxpool.Pool, logger *zap.Logger) *PostgresRepo {
 	}
 }
 
-func (r *PostgresRepo) Add(url string) (string, error) {
-	ctx := context.Background()
-
+func (r *PostgresRepo) Add(ctx context.Context, url string) (string, error) {
 	const maxAttempts = 10
 	for range maxAttempts {
 		alias := generateAlias(r.aliasLength)
@@ -47,19 +45,20 @@ func (r *PostgresRepo) Add(url string) (string, error) {
 		}
 
 		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) {
-			if pgErr.Code == pgerrcode.UniqueViolation {
-				if pgErr.ConstraintName == "idx_urls_original_url_unique" {
-					var existingShortURL string
-					queryErr := r.pool.QueryRow(ctx, "SELECT short_url FROM urls WHERE original_url = $1", url).Scan(&existingShortURL)
-					if queryErr != nil {
-						r.logger.Error("Failed to query existing short URL after duplicate", zap.Error(queryErr))
-						return "", fmt.Errorf("failed to query existing short URL: %w", queryErr)
-					}
-					return existingShortURL, model.ErrDuplicateURL
+		if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
+			if pgErr.ConstraintName == "idx_urls_original_url_unique" {
+				var existingShortURL string
+				queryErr := r.pool.QueryRow(ctx,
+					"SELECT short_url FROM urls WHERE original_url = $1", url,
+				).Scan(&existingShortURL)
+				if queryErr != nil {
+					r.logger.Error("Failed to query existing short URL after duplicate", zap.Error(queryErr))
+					return "", fmt.Errorf("failed to query existing short URL: %w", queryErr)
 				}
-				continue
+
+				return "", &model.DuplicateURLError{ExistingShortURL: existingShortURL}
 			}
+			continue
 		}
 
 		r.logger.Error("Failed to insert URL", zap.Error(err))
@@ -69,12 +68,11 @@ func (r *PostgresRepo) Add(url string) (string, error) {
 	return "", errors.New("failed to generate unique alias after maximum attempts")
 }
 
-func (r *PostgresRepo) AddBatch(urls []string) ([]string, error) {
+func (r *PostgresRepo) AddBatch(ctx context.Context, urls []string) ([]string, error) {
 	if len(urls) == 0 {
 		return []string{}, nil
 	}
 
-	ctx := context.Background()
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		r.logger.Error("Failed to begin transaction", zap.Error(err))
@@ -83,43 +81,77 @@ func (r *PostgresRepo) AddBatch(urls []string) ([]string, error) {
 	defer tx.Rollback(ctx)
 
 	result := make([]string, len(urls))
-	const maxAttempts = 10
 
-	for i, url := range urls {
-		var existingShortURL string
-		err := tx.QueryRow(ctx, "SELECT short_url FROM urls WHERE original_url = $1", url).Scan(&existingShortURL)
-		if err == nil {
-			result[i] = existingShortURL
+	existing := make(map[string]string, len(urls))
+	rows, err := tx.Query(ctx,
+		`SELECT original_url, short_url FROM urls WHERE original_url = ANY($1)`,
+		urls,
+	)
+	if err != nil {
+		r.logger.Error("Failed to select existing URLs", zap.Error(err))
+		return nil, fmt.Errorf("failed to select existing URLs: %w", err)
+	}
+	for rows.Next() {
+		var orig, short string
+		if err := rows.Scan(&orig, &short); err != nil {
+			rows.Close()
+			return nil, fmt.Errorf("failed to scan existing URLs: %w", err)
+		}
+		existing[orig] = short
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, fmt.Errorf("failed during existing URLs iteration: %w", err)
+	}
+	rows.Close()
+
+	type ins struct {
+		id    uuid.UUID
+		alias string
+		url   string
+	}
+	inserts := make([]ins, 0, len(urls))
+
+	generated := make(map[string]string, len(urls))
+
+	for i, u := range urls {
+		if short, ok := existing[u]; ok {
+			result[i] = short
 			continue
 		}
-		if !errors.Is(err, pgx.ErrNoRows) {
-			r.logger.Error("Failed to check existing URL in batch", zap.Error(err))
-			return nil, fmt.Errorf("failed to check existing URL in batch: %w", err)
+		if short, ok := generated[u]; ok {
+			result[i] = short
+			continue
 		}
 
-		for range maxAttempts {
-			alias := generateAlias(r.aliasLength)
+		alias := generateAlias(r.aliasLength)
+		result[i] = alias
+		generated[u] = alias
+		inserts = append(inserts, ins{id: uuid.New(), alias: alias, url: u})
+	}
 
-			_, err = tx.Exec(ctx,
-				"INSERT INTO urls (id, short_url, original_url) VALUES ($1, $2, $3)",
-				uuid.New(), alias, url)
+	var b pgx.Batch
+	for _, it := range inserts {
+		b.Queue(
+			"INSERT INTO urls (id, short_url, original_url) VALUES ($1, $2, $3)",
+			it.id, it.alias, it.url,
+		)
+	}
 
-			if err == nil {
-				result[i] = alias
-				break
-			}
-
+	br := tx.SendBatch(ctx, &b)
+	for range inserts {
+		_, err := br.Exec()
+		if err != nil {
+			_ = br.Close()
 			if isUniqueConstraintError(err) {
-				continue
+				return nil, errors.New("collision: batch insert failed due to unique constraint")
 			}
-
 			r.logger.Error("Failed to insert URL in batch", zap.Error(err))
 			return nil, fmt.Errorf("failed to insert URL in batch: %w", err)
 		}
-
-		if result[i] == "" {
-			return nil, errors.New("failed to generate unique alias for one or more URLs")
-		}
+	}
+	if err := br.Close(); err != nil {
+		return nil, fmt.Errorf("failed to close batch: %w", err)
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -130,9 +162,7 @@ func (r *PostgresRepo) AddBatch(urls []string) ([]string, error) {
 	return result, nil
 }
 
-func (r *PostgresRepo) Get(alias string) (string, error) {
-	ctx := context.Background()
-
+func (r *PostgresRepo) Get(ctx context.Context, alias string) (string, error) {
 	var originalURL string
 	err := r.pool.QueryRow(ctx, "SELECT original_url FROM urls WHERE short_url = $1", alias).Scan(&originalURL)
 

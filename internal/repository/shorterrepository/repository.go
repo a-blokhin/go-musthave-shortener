@@ -1,6 +1,7 @@
 package shorterrepository
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math/rand/v2"
@@ -10,7 +11,7 @@ import (
 type Repo struct {
 	shortToLink map[string]string
 	linkToShort map[string]string
-	rwMutex     sync.RWMutex
+	mutex       sync.RWMutex
 	aliasLength int
 }
 
@@ -24,9 +25,9 @@ func New() *Repo {
 
 const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
-func (r *Repo) Add(url string) (string, error) {
-	r.rwMutex.Lock()
-	defer r.rwMutex.Unlock()
+func (r *Repo) Add(ctx context.Context, url string) (string, error) {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
 
 	if r.hasLink(url) {
 		return r.linkToShort[url], nil
@@ -46,13 +47,13 @@ func (r *Repo) Add(url string) (string, error) {
 	return "", errors.New("failed to generate unique alias")
 }
 
-func (r *Repo) AddBatch(urls []string) ([]string, error) {
+func (r *Repo) AddBatch(ctx context.Context, urls []string) ([]string, error) {
 	if len(urls) == 0 {
 		return []string{}, nil
 	}
 
-	r.rwMutex.Lock()
-	defer r.rwMutex.Unlock()
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
 
 	result := make([]string, len(urls))
 	const maxAttempts = 10
@@ -82,9 +83,9 @@ func (r *Repo) AddBatch(urls []string) ([]string, error) {
 	return result, nil
 }
 
-func (r *Repo) Get(alias string) (string, error) {
-	r.rwMutex.RLock()
-	defer r.rwMutex.RUnlock()
+func (r *Repo) Get(ctx context.Context, alias string) (string, error) {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
 
 	if !r.hasAlias(alias) {
 		return "", fmt.Errorf("can't find requested alias %s", alias)

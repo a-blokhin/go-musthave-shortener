@@ -1,10 +1,11 @@
 package shorterfilerepository
 
 import (
-	"maps"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"math/rand/v2"
 	"os"
 	"strconv"
@@ -20,7 +21,7 @@ type URLData struct {
 type FileRepo struct {
 	shortToLink map[string]string
 	linkToShort map[string]string
-	rwMutex     sync.RWMutex
+	mutex       sync.RWMutex
 	aliasLength int
 	filePath    string
 }
@@ -40,9 +41,9 @@ func New(filePath string) *FileRepo {
 
 const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
-func (r *FileRepo) Add(url string) (string, error) {
-	r.rwMutex.Lock()
-	defer r.rwMutex.Unlock()
+func (r *FileRepo) Add(ctx context.Context, url string) (string, error) {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
 
 	if r.hasLink(url) {
 		return r.linkToShort[url], nil
@@ -70,13 +71,13 @@ func (r *FileRepo) Add(url string) (string, error) {
 	return "", errors.New("failed to generate unique alias")
 }
 
-func (r *FileRepo) AddBatch(urls []string) ([]string, error) {
+func (r *FileRepo) AddBatch(ctx context.Context, urls []string) ([]string, error) {
 	if len(urls) == 0 {
 		return []string{}, nil
 	}
 
-	r.rwMutex.Lock()
-	defer r.rwMutex.Unlock()
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
 
 	originalShortToLink := make(map[string]string, len(r.shortToLink))
 	originalLinkToShort := make(map[string]string, len(r.linkToShort))
@@ -119,9 +120,9 @@ func (r *FileRepo) AddBatch(urls []string) ([]string, error) {
 	return result, nil
 }
 
-func (r *FileRepo) Get(alias string) (string, error) {
-	r.rwMutex.RLock()
-	defer r.rwMutex.RUnlock()
+func (r *FileRepo) Get(ctx context.Context, alias string) (string, error) {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
 
 	if !r.hasAlias(alias) {
 		return "", fmt.Errorf("can't find requested alias %s", alias)

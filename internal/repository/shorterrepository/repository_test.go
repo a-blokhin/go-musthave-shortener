@@ -1,6 +1,7 @@
 package shorterrepository
 
 import (
+	"context"
 	"strings"
 	"testing"
 )
@@ -29,7 +30,7 @@ func TestRepo_Add(t *testing.T) {
 	repo := New()
 	url := "https://example.com"
 
-	alias, err := repo.Add(url)
+	alias, err := repo.Add(context.TODO(), url)
 	if err != nil {
 		t.Fatalf("Add() returned an error: %v", err)
 	}
@@ -46,7 +47,7 @@ func TestRepo_Add(t *testing.T) {
 		t.Error("URL not stored in repository")
 	}
 
-	sameAlias, err := repo.Add(url)
+	sameAlias, err := repo.Add(context.TODO(), url)
 	if err != nil {
 		t.Fatalf("Add() for same URL returned an error: %v", err)
 	}
@@ -60,12 +61,12 @@ func TestRepo_Get(t *testing.T) {
 	repo := New()
 	url := "https://example.com"
 
-	alias, err := repo.Add(url)
+	alias, err := repo.Add(context.TODO(), url)
 	if err != nil {
 		t.Fatalf("Add() returned an error: %v", err)
 	}
 
-	retrievedURL, err := repo.Get(alias)
+	retrievedURL, err := repo.Get(context.TODO(), alias)
 	if err != nil {
 		t.Fatalf("Get() returned an error: %v", err)
 	}
@@ -74,7 +75,7 @@ func TestRepo_Get(t *testing.T) {
 		t.Errorf("expected URL %s, got %s", url, retrievedURL)
 	}
 
-	_, err = repo.Get("nonexistent-alias")
+	_, err = repo.Get(context.TODO(), "nonexistent-alias")
 	if err == nil {
 		t.Error("expected error for non-existent alias, got nil")
 	}
@@ -88,7 +89,7 @@ func TestRepo_hasLink(t *testing.T) {
 		t.Error("hasLink() should return false for non-existent URL")
 	}
 
-	_, err := repo.Add(url)
+	_, err := repo.Add(context.TODO(), url)
 	if err != nil {
 		t.Fatalf("Add() returned an error: %v", err)
 	}
@@ -102,7 +103,7 @@ func TestRepo_hasAlias(t *testing.T) {
 	repo := New()
 	url := "https://example.com"
 
-	alias, err := repo.Add(url)
+	alias, err := repo.Add(context.TODO(), url)
 	if err != nil {
 		t.Fatalf("Add() returned an error: %v", err)
 	}

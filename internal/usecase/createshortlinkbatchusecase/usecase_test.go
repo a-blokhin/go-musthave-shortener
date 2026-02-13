@@ -14,17 +14,9 @@ import (
 	"go.uber.org/zap"
 
 	"go-musthave-shortener/internal/usecase/createshortlinkbatchusecase"
+	"go-musthave-shortener/internal/usecase/createshortlinkbatchusecase/mocks"
 	"go-musthave-shortener/pkg/createshortlinkbatchpkg"
 )
-
-type MockLinkRepo struct {
-	mock.Mock
-}
-
-func (m *MockLinkRepo) AddBatch(urls []string) ([]string, error) {
-	args := m.Called(urls)
-	return args.Get(0).([]string), args.Error(1)
-}
 
 func TestUsecase_Execute(t *testing.T) {
 	logger := zap.NewNop()
@@ -33,7 +25,7 @@ func TestUsecase_Execute(t *testing.T) {
 	tests := []struct {
 		name           string
 		requestBody    interface{}
-		mockSetup      func(*MockLinkRepo)
+		mockSetup      func(*mocks.LinkRepo)
 		expectedStatus int
 		expectedBody   interface{}
 	}{
@@ -45,8 +37,8 @@ func TestUsecase_Execute(t *testing.T) {
 					OriginalURL:   "https://practicum.yandex.ru",
 				},
 			},
-			mockSetup: func(m *MockLinkRepo) {
-				m.On("AddBatch", []string{"https://practicum.yandex.ru"}).Return([]string{"abc123"}, nil)
+			mockSetup: func(m *mocks.LinkRepo) {
+				m.On("AddBatch", mock.Anything, []string{"https://practicum.yandex.ru"}).Return([]string{"abc123"}, nil)
 			},
 			expectedStatus: http.StatusCreated,
 			expectedBody: createshortlinkbatchpkg.BatchResponse{
@@ -68,8 +60,8 @@ func TestUsecase_Execute(t *testing.T) {
 					OriginalURL:   "https://example.com",
 				},
 			},
-			mockSetup: func(m *MockLinkRepo) {
-				m.On("AddBatch", []string{"https://practicum.yandex.ru", "https://example.com"}).Return([]string{"abc123", "def456"}, nil)
+			mockSetup: func(m *mocks.LinkRepo) {
+				m.On("AddBatch", mock.Anything, []string{"https://practicum.yandex.ru", "https://example.com"}).Return([]string{"abc123", "def456"}, nil)
 			},
 			expectedStatus: http.StatusCreated,
 			expectedBody: createshortlinkbatchpkg.BatchResponse{
@@ -86,7 +78,7 @@ func TestUsecase_Execute(t *testing.T) {
 		{
 			name:           "empty batch",
 			requestBody:    createshortlinkbatchpkg.BatchRequest{},
-			mockSetup:      func(m *MockLinkRepo) {},
+			mockSetup:      func(m *mocks.LinkRepo) {},
 			expectedStatus: http.StatusBadRequest,
 			expectedBody:   map[string]string{"error": "Batch cannot be empty"},
 		},
@@ -98,14 +90,14 @@ func TestUsecase_Execute(t *testing.T) {
 					OriginalURL:   "",
 				},
 			},
-			mockSetup:      func(m *MockLinkRepo) {},
+			mockSetup:      func(m *mocks.LinkRepo) {},
 			expectedStatus: http.StatusBadRequest,
 			expectedBody:   map[string]string{"error": "URL cannot be empty"},
 		},
 		{
 			name:           "invalid JSON",
 			requestBody:    "invalid json",
-			mockSetup:      func(m *MockLinkRepo) {},
+			mockSetup:      func(m *mocks.LinkRepo) {},
 			expectedStatus: http.StatusBadRequest,
 			expectedBody:   map[string]string{"error": "Invalid JSON"},
 		},
@@ -117,8 +109,8 @@ func TestUsecase_Execute(t *testing.T) {
 					OriginalURL:   "https://example.com",
 				},
 			},
-			mockSetup: func(m *MockLinkRepo) {
-				m.On("AddBatch", []string{"https://example.com"}).Return([]string{}, errors.New("database error"))
+			mockSetup: func(m *mocks.LinkRepo) {
+				m.On("AddBatch", mock.Anything, []string{"https://example.com"}).Return([]string{}, errors.New("database error"))
 			},
 			expectedStatus: http.StatusInternalServerError,
 			expectedBody:   map[string]string{"error": "Internal Server Error"},
@@ -128,7 +120,7 @@ func TestUsecase_Execute(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
-			mockRepo := new(MockLinkRepo)
+			mockRepo := mocks.NewLinkRepo(t)
 			tt.mockSetup(mockRepo)
 
 			usecase := createshortlinkbatchusecase.New(mockRepo, logger, baseURL)
@@ -159,8 +151,6 @@ func TestUsecase_Execute(t *testing.T) {
 			json.Unmarshal(expectedBodyJSON, &expectedBodyInterface)
 
 			assert.Equal(t, expectedBodyInterface, actualBody)
-
-			mockRepo.AssertExpectations(t)
 		})
 	}
 }

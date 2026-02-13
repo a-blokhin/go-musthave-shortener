@@ -1,8 +1,10 @@
 package createshortlinkbatchusecase
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
+	"net/url"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -25,6 +27,7 @@ func New(linkRepo LinkRepo, logger *zap.Logger, baseURL string) *Usecase {
 }
 
 func (u *Usecase) Execute(c *gin.Context) {
+	ctx := context.TODO()
 	var req createshortlinkbatchpkg.BatchRequest
 
 	if err := json.NewDecoder(c.Request.Body).Decode(&req); err != nil {
@@ -52,17 +55,23 @@ func (u *Usecase) Execute(c *gin.Context) {
 		urls = append(urls, item.OriginalURL)
 	}
 
-	aliases, err := u.linkRepo.AddBatch(urls)
+	aliases, err := u.linkRepo.AddBatch(ctx, urls)
 	if err != nil {
 		u.logger.Error("Failed to create short URLs",
 			zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": http.StatusText(http.StatusInternalServerError)})
 		return
 	}
 
 	response := make(createshortlinkbatchpkg.BatchResponse, 0, len(req))
 	for i, item := range req {
-		shortURL := u.baseURL + "/" + aliases[i]
+		shortURL, err := url.JoinPath(u.baseURL, aliases[i])
+		if err != nil {
+			u.logger.Error("Failed to create short URL",
+				zap.Error(err))
+			c.JSON(http.StatusInternalServerError, gin.H{"error": http.StatusText(http.StatusInternalServerError)})
+			return
+		}
 		response = append(response, createshortlinkbatchpkg.BatchResponseItem{
 			CorrelationID: item.CorrelationID,
 			ShortURL:      shortURL,
