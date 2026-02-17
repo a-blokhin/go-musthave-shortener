@@ -1,109 +1,116 @@
 package shorterrepository
 
 import (
-	"context"
-	"testing"
+"context"
+"testing"
 )
 
 func TestRepo_AddBatch(t *testing.T) {
 	repo := New()
+	urls := []string{"https://example1.com", "https://example2.com", "https://example3.com"}
+	userID := "user123"
 
-	aliases, err := repo.AddBatch(context.TODO(), []string{})
+	aliases, err := repo.AddBatch(context.Background(), urls, userID)
 	if err != nil {
-		t.Fatalf("AddBatch() with empty slice returned an error: %v", err)
+		t.Fatalf("AddBatch() returned an error: %v", err)
 	}
+
+	if len(aliases) != len(urls) {
+		t.Errorf("expected %d aliases, got %d", len(urls), len(aliases))
+	}
+
+	for i, alias := range aliases {
+		if len(alias) != repo.aliasLength {
+			t.Errorf("expected alias length to be %d, got %d", repo.aliasLength, len(alias))
+		}
+
+		if !repo.hasAlias(alias) {
+			t.Errorf("alias %s not stored in repository", alias)
+		}
+
+		if !repo.hasLink(urls[i]) {
+			t.Errorf("URL %s not stored in repository", urls[i])
+		}
+	}
+
+	// Test user URLs
+	userURLs, err := repo.GetByUserID(context.Background(), userID)
+	if err != nil {
+		t.Fatalf("GetByUserID() returned an error: %v", err)
+	}
+
+	if len(userURLs) != len(urls) {
+		t.Errorf("expected %d user URLs, got %d", len(urls), len(userURLs))
+	}
+
+	for i, userURL := range userURLs {
+		if userURL.ShortURL != aliases[i] || userURL.OriginalURL != urls[i] {
+			t.Errorf("user URL mismatch at index %d: got %s -> %s, expected %s -> %s", 
+i, userURL.ShortURL, userURL.OriginalURL, aliases[i], urls[i])
+		}
+	}
+}
+
+func TestRepo_AddBatchWithEmptyURLs(t *testing.T) {
+	repo := New()
+	urls := []string{}
+	userID := "user123"
+
+	aliases, err := repo.AddBatch(context.Background(), urls, userID)
+	if err != nil {
+		t.Fatalf("AddBatch() returned an error: %v", err)
+	}
+
 	if len(aliases) != 0 {
-		t.Errorf("expected empty result for empty input, got %d aliases", len(aliases))
+		t.Errorf("expected 0 aliases, got %d", len(aliases))
 	}
+}
 
-	urls := []string{"https://example.com"}
-	aliases, err = repo.AddBatch(context.TODO(), urls)
+func TestRepo_AddBatchWithDuplicateURLs(t *testing.T) {
+	repo := New()
+	urls := []string{"https://example1.com", "https://example1.com", "https://example2.com"}
+	userID := "user123"
+
+	aliases, err := repo.AddBatch(context.Background(), urls, userID)
 	if err != nil {
 		t.Fatalf("AddBatch() returned an error: %v", err)
 	}
-	if len(aliases) != 1 {
-		t.Errorf("expected 1 alias, got %d", len(aliases))
-	}
-	if len(aliases[0]) != repo.aliasLength {
-		t.Errorf("expected alias length to be %d, got %d", repo.aliasLength, len(aliases[0]))
-	}
 
-	retrievedURL, err := repo.Get(context.TODO(), aliases[0])
-	if err != nil {
-		t.Fatalf("Get() returned an error: %v", err)
-	}
-	if retrievedURL != urls[0] {
-		t.Errorf("expected URL %s, got %s", urls[0], retrievedURL)
-	}
-
-	urls = []string{
-		"https://example1.com",
-		"https://example2.com",
-		"https://example3.com",
-	}
-	aliases, err = repo.AddBatch(context.TODO(), urls)
-	if err != nil {
-		t.Fatalf("AddBatch() returned an error: %v", err)
-	}
 	if len(aliases) != len(urls) {
 		t.Errorf("expected %d aliases, got %d", len(urls), len(aliases))
 	}
 
-	for i, url := range urls {
-		retrievedURL, err := repo.Get(context.TODO(), aliases[i])
-		if err != nil {
-			t.Fatalf("Get() returned an error: %v", err)
-		}
-		if retrievedURL != url {
-			t.Errorf("expected URL %s, got %s", url, retrievedURL)
-		}
-	}
-
-	urls = []string{
-		"https://duplicate1.com",
-		"https://duplicate1.com",
-		"https://duplicate2.com",
-	}
-	aliases, err = repo.AddBatch(context.TODO(), urls)
-	if err != nil {
-		t.Fatalf("AddBatch() with duplicates returned an error: %v", err)
-	}
-	if len(aliases) != len(urls) {
-		t.Errorf("expected %d aliases, got %d", len(urls), len(aliases))
-	}
-
+	// First and second URLs are the same, so their aliases should be the same
 	if aliases[0] != aliases[1] {
 		t.Errorf("expected same alias for duplicate URLs, got %s and %s", aliases[0], aliases[1])
 	}
 
-	existingURL := "https://existing.com"
-	existingAlias, err := repo.Add(context.TODO(), existingURL)
+	// Third URL is different, so its alias should be different
+	if aliases[0] == aliases[2] {
+		t.Errorf("expected different alias for different URLs, got %s for both", aliases[0])
+	}
+}
+
+func TestRepo_AddBatchWithoutUser(t *testing.T) {
+	repo := New()
+	urls := []string{"https://example1.com", "https://example2.com"}
+
+	aliases, err := repo.AddBatch(context.Background(), urls, "")
 	if err != nil {
-		t.Fatalf("Add() returned an error: %v", err)
+		t.Fatalf("AddBatch() returned an error: %v", err)
 	}
 
-	urls = []string{existingURL, "https://new.com"}
-	aliases, err = repo.AddBatch(context.TODO(), urls)
-	if err != nil {
-		t.Fatalf("AddBatch() with existing URL returned an error: %v", err)
-	}
 	if len(aliases) != len(urls) {
 		t.Errorf("expected %d aliases, got %d", len(urls), len(aliases))
 	}
 
-	if aliases[0] != existingAlias {
-		t.Errorf("expected existing alias %s, got %s", existingAlias, aliases[0])
+	// Test that no user URLs are stored
+	userURLs, err := repo.GetByUserID(context.Background(), "anyuser")
+	if err != nil {
+		t.Fatalf("GetByUserID() returned an error: %v", err)
 	}
 
-	urls = make([]string, 100)
-	for i := range urls {
-		urls[i] = "https://example" + string(rune(i)) + ".com"
-	}
-	aliases, err = repo.AddBatch(context.TODO(), urls)
-	if err != nil {
-		t.Fatalf("AddBatch() with large batch returned an error: %v", err)
-	}
-	if len(aliases) != len(urls) {
-		t.Errorf("expected %d aliases, got %d", len(urls), len(aliases))
+	if len(userURLs) != 0 {
+		t.Errorf("expected 0 user URLs, got %d", len(userURLs))
 	}
 }

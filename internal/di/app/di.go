@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -20,6 +19,7 @@ import (
 	"go-musthave-shortener/internal/usecase/createshortlinkbatchusecase"
 	"go-musthave-shortener/internal/usecase/createshortlinkjsonusecase"
 	"go-musthave-shortener/internal/usecase/createshortlinkusecase"
+	"go-musthave-shortener/internal/usecase/getuserurlsusecase"
 	"go-musthave-shortener/internal/usecase/pingdatabaseusecase"
 	"go-musthave-shortener/internal/usecase/redirectfromshortlinkusecase"
 )
@@ -33,9 +33,10 @@ type DI struct {
 
 	usecases struct {
 		createShortLink       *createshortlinkusecase.Usecase
-		createShortLinkBatch  *createshortlinkbatchusecase.Usecase
 		createShortLinkJSON   *createshortlinkjsonusecase.Usecase
+		createShortLinkBatch  *createshortlinkbatchusecase.Usecase
 		redirectFromShortLink *redirectfromshortlinkusecase.Usecase
+		getUserURLs           getuserurlsusecase.Usecase
 		pingDatabase          *pingdatabaseusecase.Usecase
 	}
 
@@ -60,16 +61,14 @@ func (d *DI) Init(config *config.Config) error {
 	if config.DatabaseDSN != "" {
 		db, err := database.New(config.DatabaseDSN)
 		if err != nil {
+			d.logger.Error("Failed to connect to database", zap.Error(err))
 			return err
 		}
 		d.db = db
 		d.logger.Info("Connected to PostgreSQL database")
 	}
 
-	err = d.initRepos()
-	if err != nil {
-		return err
-	}
+	d.initRepos()
 	d.initUsecases()
 	d.initMux()
 	d.initAPI()
@@ -77,13 +76,13 @@ func (d *DI) Init(config *config.Config) error {
 	return nil
 }
 
-func (d *DI) initRepos() error {
+func (d *DI) initRepos() {
 	if d.db != nil {
 		d.logger.Info("Using PostgreSQL database storage")
 
 		migrator := migration.New(d.logger, "migrations")
 		if err := migrator.Up(d.config.DatabaseDSN); err != nil {
-			return fmt.Errorf("failed to run database migrations %w", err)
+			d.logger.Fatal("Failed to run database migrations", zap.Error(err))
 		}
 
 		postgresRepo := postgresrepository.New(d.db.Pool(), d.logger)
@@ -95,14 +94,14 @@ func (d *DI) initRepos() error {
 		d.logger.Info("Using in-memory storage")
 		d.repos.shorterRepo = shorterrepository.New()
 	}
-	return nil
 }
 
 func (d *DI) initUsecases() {
 	d.usecases.createShortLink = createshortlinkusecase.New(d.repos.shorterRepo, d.logger, d.config.BaseURL)
-	d.usecases.createShortLinkBatch = createshortlinkbatchusecase.New(d.repos.shorterRepo, d.logger, d.config.BaseURL)
 	d.usecases.createShortLinkJSON = createshortlinkjsonusecase.New(d.repos.shorterRepo, d.logger, d.config.BaseURL)
+	d.usecases.createShortLinkBatch = createshortlinkbatchusecase.New(d.repos.shorterRepo, d.logger, d.config.BaseURL)
 	d.usecases.redirectFromShortLink = redirectfromshortlinkusecase.New(d.repos.shorterRepo, d.logger)
+	d.usecases.getUserURLs = getuserurlsusecase.New(d.repos.shorterRepo, d.logger, d.config.BaseURL)
 	d.usecases.pingDatabase = pingdatabaseusecase.New(d.db, d.logger)
 }
 
@@ -122,6 +121,7 @@ func (d *DI) initAPI() {
 		d.usecases.createShortLinkBatch,
 		d.usecases.redirectFromShortLink,
 		d.usecases.pingDatabase,
+		d.usecases.getUserURLs,
 	)
 	d.api.RegisterHandlers(d.router)
 }

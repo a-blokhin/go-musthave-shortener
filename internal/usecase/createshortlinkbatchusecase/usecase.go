@@ -1,15 +1,12 @@
 package createshortlinkbatchusecase
 
 import (
-	"context"
-	"encoding/json"
 	"net/http"
-	"net/url"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
-	"go-musthave-shortener/pkg/createshortlinkbatchpkg"
+	"go-musthave-shortener/internal/middleware"
 )
 
 type Usecase struct {
@@ -26,57 +23,74 @@ func New(linkRepo LinkRepo, logger *zap.Logger, baseURL string) *Usecase {
 	}
 }
 
-func (u *Usecase) Execute(c *gin.Context) {
-	ctx := context.TODO()
-	var req createshortlinkbatchpkg.BatchRequest
+// ShortenBatchRequest represents the request body for batch shortening
+type ShortenBatchRequest struct {
+	CorrelationID string `json:"correlation_id"`
+	OriginalURL   string `json:"original_url"`
+}
 
-	if err := json.NewDecoder(c.Request.Body).Decode(&req); err != nil {
-		u.logger.Error("Failed to decode JSON request",
-			zap.Error(err))
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON"})
+// ShortenBatchResponse represents the response body for batch shortening
+type ShortenBatchResponse struct {
+	CorrelationID string `json:"correlation_id"`
+	ShortURL      string `json:"short_url"`
+}
+
+func (u *Usecase) Execute(c *gin.Context) {
+	var req []ShortenBatchRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		u.logger.Error("Failed to bind JSON", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request"})
 		return
 	}
-	defer c.Request.Body.Close()
 
 	if len(req) == 0 {
-		u.logger.Info("Empty batch provided")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Batch cannot be empty"})
+		u.logger.Info("Empty batch request")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Batch request cannot be empty"})
 		return
 	}
 
-	urls := make([]string, 0, len(req))
-	for _, item := range req {
+	// Get user ID from context
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		userID = ""
+	}
+
+	// Extract URLs from request and validate
+	urls := make([]string, len(req))
+	for i, item := range req {
 		if item.OriginalURL == "" {
-			u.logger.Info("Empty URL in batch item",
-				zap.String("correlation_id", item.CorrelationID))
+			u.logger.Info("Empty URL in batch item", zap.String("correlation_id", item.CorrelationID))
 			c.JSON(http.StatusBadRequest, gin.H{"error": "URL cannot be empty"})
 			return
 		}
-		urls = append(urls, item.OriginalURL)
+		urls[i] = item.OriginalURL
 	}
 
-	aliases, err := u.linkRepo.AddBatch(ctx, urls)
+	// Add URLs in batch
+	aliases, err := u.linkRepo.AddBatch(c.Request.Context(), urls, userID)
 	if err != nil {
-		u.logger.Error("Failed to create short URLs",
-			zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": http.StatusText(http.StatusInternalServerError)})
+		u.logger.Error("Failed to create short URLs in batch", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
 		return
 	}
 
-	response := make(createshortlinkbatchpkg.BatchResponse, 0, len(req))
-	for i, item := range req {
-		shortURL, err := url.JoinPath(u.baseURL, aliases[i])
-		if err != nil {
-			u.logger.Error("Failed to create short URL",
-				zap.Error(err))
-			c.JSON(http.StatusInternalServerError, gin.H{"error": http.StatusText(http.StatusInternalServerError)})
-			return
-		}
-		response = append(response, createshortlinkbatchpkg.BatchResponseItem{
-			CorrelationID: item.CorrelationID,
-			ShortURL:      shortURL,
-		})
+	// Check if we got the expected number of aliases
+	if len(aliases) != len(req) {
+		u.logger.Error("Mismatch between request count and aliases count",
+			zap.Int("request_count", len(req)),
+			zap.Int("aliases_count", len(aliases)))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
+		return
 	}
 
-	c.JSON(http.StatusCreated, response)
+	// Create response
+	resp := make([]ShortenBatchResponse, len(req))
+	for i, item := range req {
+		resp[i] = ShortenBatchResponse{
+			CorrelationID: item.CorrelationID,
+			ShortURL:      u.baseURL + "/" + aliases[i],
+		}
+	}
+
+	c.JSON(http.StatusCreated, resp)
 }

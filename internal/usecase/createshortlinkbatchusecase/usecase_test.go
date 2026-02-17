@@ -38,7 +38,7 @@ func TestUsecase_Execute(t *testing.T) {
 				},
 			},
 			mockSetup: func(m *mocks.LinkRepo) {
-				m.On("AddBatch", mock.Anything, []string{"https://practicum.yandex.ru"}).Return([]string{"abc123"}, nil)
+				m.On("AddBatch", mock.Anything, []string{"https://practicum.yandex.ru"}, "").Return([]string{"abc123"}, nil)
 			},
 			expectedStatus: http.StatusCreated,
 			expectedBody: createshortlinkbatchpkg.BatchResponse{
@@ -61,7 +61,7 @@ func TestUsecase_Execute(t *testing.T) {
 				},
 			},
 			mockSetup: func(m *mocks.LinkRepo) {
-				m.On("AddBatch", mock.Anything, []string{"https://practicum.yandex.ru", "https://example.com"}).Return([]string{"abc123", "def456"}, nil)
+				m.On("AddBatch", mock.Anything, []string{"https://practicum.yandex.ru", "https://example.com"}, "").Return([]string{"abc123", "def456"}, nil)
 			},
 			expectedStatus: http.StatusCreated,
 			expectedBody: createshortlinkbatchpkg.BatchResponse{
@@ -80,7 +80,7 @@ func TestUsecase_Execute(t *testing.T) {
 			requestBody:    createshortlinkbatchpkg.BatchRequest{},
 			mockSetup:      func(m *mocks.LinkRepo) {},
 			expectedStatus: http.StatusBadRequest,
-			expectedBody:   map[string]string{"error": "Batch cannot be empty"},
+			expectedBody:   map[string]string{"error": "Batch request cannot be empty"},
 		},
 		{
 			name: "empty URL in batch item",
@@ -90,7 +90,7 @@ func TestUsecase_Execute(t *testing.T) {
 					OriginalURL:   "",
 				},
 			},
-			mockSetup:      func(m *mocks.LinkRepo) {},
+			mockSetup:      func(m *mocks.LinkRepo) {}, // No mock setup since we return early
 			expectedStatus: http.StatusBadRequest,
 			expectedBody:   map[string]string{"error": "URL cannot be empty"},
 		},
@@ -99,7 +99,7 @@ func TestUsecase_Execute(t *testing.T) {
 			requestBody:    "invalid json",
 			mockSetup:      func(m *mocks.LinkRepo) {},
 			expectedStatus: http.StatusBadRequest,
-			expectedBody:   map[string]string{"error": "Invalid JSON"},
+			expectedBody:   map[string]string{"error": "Bad Request"},
 		},
 		{
 			name: "repository error",
@@ -110,7 +110,7 @@ func TestUsecase_Execute(t *testing.T) {
 				},
 			},
 			mockSetup: func(m *mocks.LinkRepo) {
-				m.On("AddBatch", mock.Anything, []string{"https://example.com"}).Return([]string{}, errors.New("database error"))
+				m.On("AddBatch", mock.Anything, []string{"https://example.com"}, "").Return([]string{}, errors.New("database error"))
 			},
 			expectedStatus: http.StatusInternalServerError,
 			expectedBody:   map[string]string{"error": "Internal Server Error"},

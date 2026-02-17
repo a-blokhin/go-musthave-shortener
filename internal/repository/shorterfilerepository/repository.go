@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"go-musthave-shortener/internal/repository"
 	"maps"
 	"math/rand/v2"
 	"os"
@@ -16,11 +17,13 @@ type URLData struct {
 	UUID        string `json:"uuid"`
 	ShortURL    string `json:"short_url"`
 	OriginalURL string `json:"original_url"`
+	UserID      string `json:"user_id,omitempty"`
 }
 
 type FileRepo struct {
 	shortToLink map[string]string
 	linkToShort map[string]string
+	userToURLs  map[string][]repository.UserURL
 	mutex       sync.RWMutex
 	aliasLength int
 	filePath    string
@@ -30,6 +33,7 @@ func New(filePath string) *FileRepo {
 	repo := &FileRepo{
 		shortToLink: map[string]string{},
 		linkToShort: map[string]string{},
+		userToURLs:  map[string][]repository.UserURL{},
 		aliasLength: 8,
 		filePath:    filePath,
 	}
@@ -41,7 +45,7 @@ func New(filePath string) *FileRepo {
 
 const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
-func (r *FileRepo) Add(ctx context.Context, url string) (string, error) {
+func (r *FileRepo) Add(ctx context.Context, url string, userID string) (string, error) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
@@ -56,11 +60,23 @@ func (r *FileRepo) Add(ctx context.Context, url string) (string, error) {
 		if !r.hasAlias(alias) {
 			r.shortToLink[alias] = url
 			r.linkToShort[url] = alias
+			
+			// Add to user URLs if userID is provided
+			if userID != "" {
+				userURL := repository.UserURL{
+					ShortURL:    alias,
+					OriginalURL: url,
+				}
+				r.userToURLs[userID] = append(r.userToURLs[userID], userURL)
+			}
 
 			if err := r.saveToFile(); err != nil {
 
 				delete(r.shortToLink, alias)
 				delete(r.linkToShort, url)
+				if userID != "" {
+					r.removeUserURL(userID, alias)
+				}
 				return "", fmt.Errorf("failed to save to file: %w", err)
 			}
 
@@ -71,7 +87,7 @@ func (r *FileRepo) Add(ctx context.Context, url string) (string, error) {
 	return "", errors.New("failed to generate unique alias")
 }
 
-func (r *FileRepo) AddBatch(ctx context.Context, urls []string) ([]string, error) {
+func (r *FileRepo) AddBatch(ctx context.Context, urls []string, userID string) ([]string, error) {
 	if len(urls) == 0 {
 		return []string{}, nil
 	}
@@ -99,6 +115,16 @@ func (r *FileRepo) AddBatch(ctx context.Context, urls []string) ([]string, error
 			if !r.hasAlias(alias) {
 				r.shortToLink[alias] = url
 				r.linkToShort[url] = alias
+				
+				// Add to user URLs if userID is provided
+				if userID != "" {
+					userURL := repository.UserURL{
+						ShortURL:    alias,
+						OriginalURL: url,
+					}
+					r.userToURLs[userID] = append(r.userToURLs[userID], userURL)
+				}
+				
 				result[i] = alias
 				break
 			}
@@ -107,6 +133,7 @@ func (r *FileRepo) AddBatch(ctx context.Context, urls []string) ([]string, error
 		if result[i] == "" {
 			r.shortToLink = originalShortToLink
 			r.linkToShort = originalLinkToShort
+			r.userToURLs = map[string][]repository.UserURL{} // Reset user URLs
 			return nil, errors.New("failed to generate unique alias for one or more URLs")
 		}
 	}
@@ -114,6 +141,7 @@ func (r *FileRepo) AddBatch(ctx context.Context, urls []string) ([]string, error
 	if err := r.saveToFile(); err != nil {
 		r.shortToLink = originalShortToLink
 		r.linkToShort = originalLinkToShort
+		r.userToURLs = map[string][]repository.UserURL{} // Reset user URLs
 		return nil, fmt.Errorf("failed to save to file: %w", err)
 	}
 
@@ -168,6 +196,15 @@ func (r *FileRepo) loadFromFile() error {
 	for _, item := range urlDataList {
 		r.shortToLink[item.ShortURL] = item.OriginalURL
 		r.linkToShort[item.OriginalURL] = item.ShortURL
+		
+		// Add to user URLs if userID is present
+		if item.UserID != "" {
+			userURL := repository.UserURL{
+				ShortURL:    item.ShortURL,
+				OriginalURL: item.OriginalURL,
+			}
+			r.userToURLs[item.UserID] = append(r.userToURLs[item.UserID], userURL)
+		}
 	}
 
 	return nil
@@ -178,10 +215,25 @@ func (r *FileRepo) saveToFile() error {
 	uuid := 1
 
 	for shortURL, originalURL := range r.shortToLink {
+		userID := ""
+		// Find userID for this URL if it exists
+		for uid, userURLs := range r.userToURLs {
+			for _, userURL := range userURLs {
+				if userURL.ShortURL == shortURL {
+					userID = uid
+					break
+				}
+			}
+			if userID != "" {
+				break
+			}
+		}
+		
 		urlDataList = append(urlDataList, URLData{
 			UUID:        strconv.Itoa(uuid),
 			ShortURL:    shortURL,
 			OriginalURL: originalURL,
+			UserID:      userID,
 		})
 		uuid++
 	}
@@ -196,6 +248,33 @@ func (r *FileRepo) saveToFile() error {
 	}
 
 	return nil
+}
+
+func (r *FileRepo) GetByUserID(ctx context.Context, userID string) ([]repository.UserURL, error) {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+
+	userURLs, exists := r.userToURLs[userID]
+	if !exists {
+		return []repository.UserURL{}, nil
+	}
+
+	// Return a copy to avoid external modification
+	result := make([]repository.UserURL, len(userURLs))
+	copy(result, userURLs)
+	
+	return result, nil
+}
+
+func (r *FileRepo) removeUserURL(userID, shortURL string) {
+	if userURLs, exists := r.userToURLs[userID]; exists {
+		for i, userURL := range userURLs {
+			if userURL.ShortURL == shortURL {
+				r.userToURLs[userID] = append(userURLs[:i], userURLs[i+1:]...)
+				break
+			}
+		}
+	}
 }
 
 func generateAlias(length int) string {

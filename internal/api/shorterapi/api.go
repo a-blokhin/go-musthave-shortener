@@ -6,6 +6,7 @@ import (
 	"go-musthave-shortener/internal/usecase/createshortlinkbatchusecase"
 	"go-musthave-shortener/internal/usecase/createshortlinkjsonusecase"
 	"go-musthave-shortener/internal/usecase/createshortlinkusecase"
+	"go-musthave-shortener/internal/usecase/getuserurlsusecase"
 	"go-musthave-shortener/internal/usecase/pingdatabaseusecase"
 	"go-musthave-shortener/internal/usecase/redirectfromshortlinkusecase"
 	"go-musthave-shortener/pkg/createshortlinkbatchpkg"
@@ -20,6 +21,7 @@ type ShortAPI struct {
 	createShortLinkBatchUseCase *createshortlinkbatchusecase.Usecase
 	redirectUseCase             *redirectfromshortlinkusecase.Usecase
 	pingDatabase                *pingdatabaseusecase.Usecase
+	getUserURLs                 getuserurlsusecase.Usecase
 }
 
 func New(
@@ -29,6 +31,7 @@ func New(
 	createShortLinkBatchUseCase *createshortlinkbatchusecase.Usecase,
 	redirectUseCase *redirectfromshortlinkusecase.Usecase,
 	pingDatabase *pingdatabaseusecase.Usecase,
+	getUserURLs getuserurlsusecase.Usecase,
 ) *ShortAPI {
 	return &ShortAPI{
 		baseURL:                     baseURL,
@@ -37,6 +40,7 @@ func New(
 		createShortLinkBatchUseCase: createShortLinkBatchUseCase,
 		redirectUseCase:             redirectUseCase,
 		pingDatabase:                pingDatabase,
+		getUserURLs:                 getUserURLs,
 	}
 }
 
@@ -46,4 +50,5 @@ func (api *ShortAPI) RegisterHandlers(router *gin.Engine) {
 	router.POST(createshortlinkbatchpkg.MethodPath, api.createShortLinkBatchUseCase.Execute)
 	router.GET("/:id", api.redirectUseCase.Execute)
 	router.GET("/ping", api.pingDatabase.Execute)
+	router.GET("/api/user/urls", api.getUserURLs.Execute)
 }

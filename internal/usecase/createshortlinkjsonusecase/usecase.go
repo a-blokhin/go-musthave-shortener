@@ -1,15 +1,14 @@
 package createshortlinkjsonusecase
 
 import (
-	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
-	"net/url"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
+	"go-musthave-shortener/internal/middleware"
 	"go-musthave-shortener/internal/model"
 	"go-musthave-shortener/pkg/createshortlinkjsonpkg"
 )
@@ -29,51 +28,47 @@ func New(linkRepo LinkRepo, logger *zap.Logger, baseURL string) *Usecase {
 }
 
 func (u *Usecase) Execute(c *gin.Context) {
-	ctx := context.TODO()
 	var req createshortlinkjsonpkg.Request
-
-	if err := json.NewDecoder(c.Request.Body).Decode(&req); err != nil {
-		u.logger.Error("Failed to decode JSON request", zap.Error(err))
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON"})
+	if err := c.ShouldBindJSON(&req); err != nil {
+		u.logger.Error("Failed to bind JSON", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request"})
 		return
 	}
-	defer c.Request.Body.Close()
 
-	if req.URL == "" {
-		u.logger.Info("Empty URL provided in JSON request")
+	url := strings.TrimSpace(req.URL)
+	if url == "" {
+		u.logger.Info("Empty URL provided in request")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "URL is required"})
 		return
 	}
 
-	alias, err := u.linkRepo.Add(ctx, req.URL)
+	// Get user ID from context
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		userID = ""
+	}
+
+	alias, err := u.linkRepo.Add(c.Request.Context(), url, userID)
 	if err != nil {
-		var dup *model.DuplicateURLError
-		if errors.As(err, &dup) {
-			shortURL, err := url.JoinPath(u.baseURL, dup.ExistingShortURL)
-			if err != nil {
-				u.logger.Error("Failed to create short URL", zap.Error(err))
-				c.JSON(http.StatusInternalServerError, gin.H{"error": http.StatusText(http.StatusInternalServerError)})
-				return
+		var duplicateErr *model.DuplicateURLError
+		if errors.As(err, &duplicateErr) {
+			// Return existing URL with 409 Conflict status
+			resp := createshortlinkjsonpkg.Response{
+				Result: u.baseURL + "/" + duplicateErr.ExistingShortURL,
 			}
-			resp := createshortlinkjsonpkg.Response{Result: shortURL}
 			c.JSON(http.StatusConflict, resp)
 			return
 		}
-
+		
 		u.logger.Error("Failed to create short URL",
 			zap.Error(err),
-			zap.String("url", req.URL))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": http.StatusText(http.StatusInternalServerError)})
+			zap.String("url", url))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
 		return
 	}
 
-	shortURL, err := url.JoinPath(u.baseURL, alias)
-	if err != nil {
-		u.logger.Error("Failed to create short URL", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": http.StatusText(http.StatusInternalServerError)})
-		return
+	resp := createshortlinkjsonpkg.Response{
+		Result: u.baseURL + "/" + alias,
 	}
-	resp := createshortlinkjsonpkg.Response{Result: shortURL}
-
 	c.JSON(http.StatusCreated, resp)
 }
