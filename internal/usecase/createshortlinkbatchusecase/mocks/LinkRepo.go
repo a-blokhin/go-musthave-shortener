@@ -21,9 +21,9 @@ func (_m *LinkRepo) EXPECT() *LinkRepo_Expecter {
 	return &LinkRepo_Expecter{mock: &_m.Mock}
 }
 
-// AddBatch provides a mock function with given fields: ctx, urls
-func (_m *LinkRepo) AddBatch(ctx context.Context, urls []string) ([]string, error) {
-	ret := _m.Called(ctx, urls)
+// AddBatch provides a mock function with given fields: ctx, urls, userID
+func (_m *LinkRepo) AddBatch(ctx context.Context, urls []string, userID string) ([]string, error) {
+	ret := _m.Called(ctx, urls, userID)
 
 	if len(ret) == 0 {
 		panic("no return value specified for AddBatch")
@@ -31,19 +31,19 @@ func (_m *LinkRepo) AddBatch(ctx context.Context, urls []string) ([]string, erro
 
 	var r0 []string
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, []string) ([]string, error)); ok {
-		return rf(ctx, urls)
+	if rf, ok := ret.Get(0).(func(context.Context, []string, string) ([]string, error)); ok {
+		return rf(ctx, urls, userID)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, []string) []string); ok {
-		r0 = rf(ctx, urls)
+	if rf, ok := ret.Get(0).(func(context.Context, []string, string) []string); ok {
+		r0 = rf(ctx, urls, userID)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]string)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, []string) error); ok {
-		r1 = rf(ctx, urls)
+	if rf, ok := ret.Get(1).(func(context.Context, []string, string) error); ok {
+		r1 = rf(ctx, urls, userID)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -59,13 +59,14 @@ type LinkRepo_AddBatch_Call struct {
 // AddBatch is a helper method to define mock.On call
 //   - ctx context.Context
 //   - urls []string
-func (_e *LinkRepo_Expecter) AddBatch(ctx interface{}, urls interface{}) *LinkRepo_AddBatch_Call {
-	return &LinkRepo_AddBatch_Call{Call: _e.mock.On("AddBatch", ctx, urls)}
+//   - userID string
+func (_e *LinkRepo_Expecter) AddBatch(ctx interface{}, urls interface{}, userID interface{}) *LinkRepo_AddBatch_Call {
+	return &LinkRepo_AddBatch_Call{Call: _e.mock.On("AddBatch", ctx, urls, userID)}
 }
 
-func (_c *LinkRepo_AddBatch_Call) Run(run func(ctx context.Context, urls []string)) *LinkRepo_AddBatch_Call {
+func (_c *LinkRepo_AddBatch_Call) Run(run func(ctx context.Context, urls []string, userID string)) *LinkRepo_AddBatch_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].([]string))
+		run(args[0].(context.Context), args[1].([]string), args[2].(string))
 	})
 	return _c
 }
@@ -75,7 +76,7 @@ func (_c *LinkRepo_AddBatch_Call) Return(_a0 []string, _a1 error) *LinkRepo_AddB
 	return _c
 }
 
-func (_c *LinkRepo_AddBatch_Call) RunAndReturn(run func(context.Context, []string) ([]string, error)) *LinkRepo_AddBatch_Call {
+func (_c *LinkRepo_AddBatch_Call) RunAndReturn(run func(context.Context, []string, string) ([]string, error)) *LinkRepo_AddBatch_Call {
 	_c.Call.Return(run)
 	return _c
 }

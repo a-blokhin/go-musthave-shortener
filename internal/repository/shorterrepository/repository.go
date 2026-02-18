@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"go-musthave-shortener/internal/repository"
 	"math/rand/v2"
 	"sync"
 )
@@ -11,6 +12,7 @@ import (
 type Repo struct {
 	shortToLink map[string]string
 	linkToShort map[string]string
+	userToURLs  map[string][]repository.UserURL
 	mutex       sync.RWMutex
 	aliasLength int
 }
@@ -19,13 +21,14 @@ func New() *Repo {
 	return &Repo{
 		shortToLink: map[string]string{},
 		linkToShort: map[string]string{},
+		userToURLs:  map[string][]repository.UserURL{},
 		aliasLength: 8,
 	}
 }
 
 const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
-func (r *Repo) Add(ctx context.Context, url string) (string, error) {
+func (r *Repo) Add(ctx context.Context, url string, userID string) (string, error) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
@@ -40,6 +43,15 @@ func (r *Repo) Add(ctx context.Context, url string) (string, error) {
 		if !r.hasAlias(alias) {
 			r.shortToLink[alias] = url
 			r.linkToShort[url] = alias
+
+			if userID != "" {
+				userURL := repository.UserURL{
+					ShortURL:    alias,
+					OriginalURL: url,
+				}
+				r.userToURLs[userID] = append(r.userToURLs[userID], userURL)
+			}
+
 			return alias, nil
 		}
 	}
@@ -47,7 +59,7 @@ func (r *Repo) Add(ctx context.Context, url string) (string, error) {
 	return "", errors.New("failed to generate unique alias")
 }
 
-func (r *Repo) AddBatch(ctx context.Context, urls []string) ([]string, error) {
+func (r *Repo) AddBatch(ctx context.Context, urls []string, userID string) ([]string, error) {
 	if len(urls) == 0 {
 		return []string{}, nil
 	}
@@ -70,6 +82,15 @@ func (r *Repo) AddBatch(ctx context.Context, urls []string) ([]string, error) {
 			if !r.hasAlias(alias) {
 				r.shortToLink[alias] = url
 				r.linkToShort[url] = alias
+
+				if userID != "" {
+					userURL := repository.UserURL{
+						ShortURL:    alias,
+						OriginalURL: url,
+					}
+					r.userToURLs[userID] = append(r.userToURLs[userID], userURL)
+				}
+
 				result[i] = alias
 				break
 			}
@@ -108,6 +129,21 @@ func (r *Repo) hasAlias(alias string) bool {
 	}
 
 	return false
+}
+
+func (r *Repo) GetByUserID(ctx context.Context, userID string) ([]repository.UserURL, error) {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+
+	userURLs, exists := r.userToURLs[userID]
+	if !exists {
+		return []repository.UserURL{}, nil
+	}
+
+	result := make([]repository.UserURL, len(userURLs))
+	copy(result, userURLs)
+
+	return result, nil
 }
 
 func generateAlias(length int) string {

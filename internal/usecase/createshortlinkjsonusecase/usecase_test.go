@@ -35,7 +35,7 @@ func TestUsecase_Execute(t *testing.T) {
 				URL: "https://practicum.yandex.ru",
 			},
 			mockSetup: func(m *mocks.LinkRepo) {
-				m.On("Add", mock.Anything, "https://practicum.yandex.ru").Return("abc123", nil)
+				m.On("Add", mock.Anything, "https://practicum.yandex.ru", "").Return("abc123", nil)
 			},
 			expectedStatus: http.StatusCreated,
 			expectedBody: createshortlinkjsonpkg.Response{
@@ -56,7 +56,7 @@ func TestUsecase_Execute(t *testing.T) {
 			requestBody:    "invalid json",
 			mockSetup:      func(m *mocks.LinkRepo) {},
 			expectedStatus: http.StatusBadRequest,
-			expectedBody:   map[string]string{"error": "Invalid JSON"},
+			expectedBody:   map[string]string{"error": "Bad Request"},
 		},
 		{
 			name: "repository error",
@@ -64,7 +64,7 @@ func TestUsecase_Execute(t *testing.T) {
 				URL: "https://example.com",
 			},
 			mockSetup: func(m *mocks.LinkRepo) {
-				m.On("Add", mock.Anything, "https://example.com").Return("", errors.New("database error"))
+				m.On("Add", mock.Anything, "https://example.com", "").Return("", errors.New("database error"))
 			},
 			expectedStatus: http.StatusInternalServerError,
 			expectedBody:   map[string]string{"error": "Internal Server Error"},

@@ -1,11 +1,10 @@
 package redirectfromshortlinkusecase
 
 import (
-	"context"
-	"net/http"
+"net/http"
 
-	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
+"github.com/gin-gonic/gin"
+"go.uber.org/zap"
 )
 
 type Usecase struct {
@@ -21,20 +20,19 @@ func New(linkRepo LinkRepo, logger *zap.Logger) *Usecase {
 }
 
 func (u *Usecase) Execute(c *gin.Context) {
-	ctx := context.TODO()
 	alias := c.Param("id")
 	if alias == "" {
-		u.logger.Info("Empty alias parameter in redirect request")
-		c.String(http.StatusBadRequest, "Bad Request")
+		u.logger.Info("Empty alias provided in request")
+		c.String(http.StatusBadRequest, "Bad Request: alias is required")
 		return
 	}
 
-	originalURL, err := u.linkRepo.Get(ctx, alias)
+	originalURL, err := u.linkRepo.Get(c.Request.Context(), alias)
 	if err != nil {
-		u.logger.Info("Failed to find original URL for alias",
-			zap.Error(err),
-			zap.String("alias", alias))
-		c.String(http.StatusNotFound, "alias %q not found", alias)
+		u.logger.Info("URL not found for alias", 
+zap.String("alias", alias), 
+zap.Error(err))
+		c.String(http.StatusNotFound, "Not Found")
 		return
 	}
 
