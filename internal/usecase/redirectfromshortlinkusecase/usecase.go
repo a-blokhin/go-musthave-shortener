@@ -1,10 +1,13 @@
 package redirectfromshortlinkusecase
 
 import (
-"net/http"
+	"errors"
+	"net/http"
 
-"github.com/gin-gonic/gin"
-"go.uber.org/zap"
+	"go-musthave-shortener/internal/model"
+
+	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 )
 
 type Usecase struct {
@@ -29,9 +32,15 @@ func (u *Usecase) Execute(c *gin.Context) {
 
 	originalURL, err := u.linkRepo.Get(c.Request.Context(), alias)
 	if err != nil {
-		u.logger.Info("URL not found for alias", 
-zap.String("alias", alias), 
-zap.Error(err))
+		u.logger.Info("URL not found for alias",
+			zap.String("alias", alias),
+			zap.Error(err))
+
+		if errors.Is(err, &model.DeletedURLError{}) {
+			c.String(http.StatusGone, "Gone")
+			return
+		}
+
 		c.String(http.StatusNotFound, "Not Found")
 		return
 	}

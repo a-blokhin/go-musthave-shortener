@@ -19,6 +19,7 @@ import (
 	"go-musthave-shortener/internal/usecase/createshortlinkbatchusecase"
 	"go-musthave-shortener/internal/usecase/createshortlinkjsonusecase"
 	"go-musthave-shortener/internal/usecase/createshortlinkusecase"
+	"go-musthave-shortener/internal/usecase/deleteurlsusecase"
 	"go-musthave-shortener/internal/usecase/getuserurlsusecase"
 	"go-musthave-shortener/internal/usecase/pingdatabaseusecase"
 	"go-musthave-shortener/internal/usecase/redirectfromshortlinkusecase"
@@ -38,6 +39,7 @@ type DI struct {
 		redirectFromShortLink *redirectfromshortlinkusecase.Usecase
 		getUserURLs           *getuserurlsusecase.Usecase
 		pingDatabase          *pingdatabaseusecase.Usecase
+		deleteURLs            *deleteurlsusecase.Usecase
 	}
 
 	repos struct {
@@ -103,6 +105,7 @@ func (d *DI) initUsecases() {
 	d.usecases.redirectFromShortLink = redirectfromshortlinkusecase.New(d.repos.shorterRepo, d.logger)
 	d.usecases.getUserURLs = getuserurlsusecase.New(d.repos.shorterRepo, d.logger, d.config.BaseURL)
 	d.usecases.pingDatabase = pingdatabaseusecase.New(d.db, d.logger)
+	d.usecases.deleteURLs = deleteurlsusecase.New(d.repos.shorterRepo, d.logger)
 }
 
 func (d *DI) initMux() {
@@ -123,6 +126,7 @@ func (d *DI) initAPI() {
 		d.usecases.redirectFromShortLink,
 		d.usecases.pingDatabase,
 		d.usecases.getUserURLs,
+		d.usecases.deleteURLs,
 	)
 	d.api.RegisterHandlers(d.router)
 }
@@ -137,6 +141,10 @@ func (d *DI) StartServer() error {
 }
 
 func (d *DI) StopServer(ctx context.Context) error {
+	if d.usecases.deleteURLs != nil {
+		d.usecases.deleteURLs.Close()
+	}
+
 	// Close database connection
 	if d.db != nil {
 		d.db.Close()

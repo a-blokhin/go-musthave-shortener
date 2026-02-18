@@ -15,3 +15,16 @@ func (e *DuplicateURLError) Error() string {
 func (e *DuplicateURLError) Unwrap() error {
 	return ErrDuplicateURL
 }
+
+var ErrDeletedURL = errors.New("URL with has been deleted")
+
+type DeletedURLError struct {
+}
+
+func (e *DeletedURLError) Error() string {
+	return ErrDeletedURL.Error()
+}
+
+func (e *DeletedURLError) Unwrap() error {
+	return ErrDeletedURL
+}
