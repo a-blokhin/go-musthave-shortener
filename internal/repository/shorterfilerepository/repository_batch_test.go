@@ -1,7 +1,6 @@
 package shorterfilerepository
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -21,18 +20,19 @@ func setupTestFileRepo(t *testing.T) (*FileRepo, string) {
 
 func TestFileRepo_AddBatch(t *testing.T) {
 	repo, _ := setupTestFileRepo(t)
+	ctx := t.Context()
 
-	result, err := repo.AddBatch(context.TODO(), []string{}, "")
+	result, err := repo.AddBatch(ctx, []string{}, "")
 	assert.NoError(t, err)
 	assert.Empty(t, result)
 
 	urls := []string{"https://example.com"}
-	result, err = repo.AddBatch(context.TODO(), urls, "")
+	result, err = repo.AddBatch(ctx, urls, "")
 	assert.NoError(t, err)
 	assert.Len(t, result, 1)
 	assert.NotEmpty(t, result[0])
 
-	retrievedURL, err := repo.Get(context.TODO(), result[0])
+	retrievedURL, err := repo.Get(ctx, result[0])
 	assert.NoError(t, err)
 	assert.Equal(t, urls[0], retrievedURL)
 
@@ -41,13 +41,13 @@ func TestFileRepo_AddBatch(t *testing.T) {
 		"https://example.com",
 		"https://google.com",
 	}
-	result, err = repo.AddBatch(context.TODO(), urls, "")
+	result, err = repo.AddBatch(ctx, urls, "")
 	assert.NoError(t, err)
 	assert.Len(t, result, 3)
 
 	for i, alias := range result {
 		assert.NotEmpty(t, alias)
-		retrievedURL, err := repo.Get(context.TODO(), alias)
+		retrievedURL, err := repo.Get(ctx, alias)
 		assert.NoError(t, err)
 		assert.Equal(t, urls[i], retrievedURL)
 	}
@@ -61,12 +61,13 @@ func TestFileRepo_AddBatch(t *testing.T) {
 
 func TestFileRepo_AddBatch_ExistingURLs(t *testing.T) {
 	repo, _ := setupTestFileRepo(t)
+	ctx := t.Context()
 
-	originalAlias, err := repo.Add(context.TODO(), "https://example.com", "")
+	originalAlias, err := repo.Add(ctx, "https://example.com", "")
 	assert.NoError(t, err)
 
 	urls := []string{"https://example.com", "https://new-url.com"}
-	result, err := repo.AddBatch(context.TODO(), urls, "")
+	result, err := repo.AddBatch(ctx, urls, "")
 	assert.NoError(t, err)
 	assert.Len(t, result, 2)
 
@@ -75,17 +76,18 @@ func TestFileRepo_AddBatch_ExistingURLs(t *testing.T) {
 	assert.NotEmpty(t, result[1])
 	assert.NotEqual(t, originalAlias, result[1])
 
-	retrievedURL1, err := repo.Get(context.TODO(), result[0])
+	retrievedURL1, err := repo.Get(ctx, result[0])
 	assert.NoError(t, err)
 	assert.Equal(t, "https://example.com", retrievedURL1)
 
-	retrievedURL2, err := repo.Get(context.TODO(), result[1])
+	retrievedURL2, err := repo.Get(ctx, result[1])
 	assert.NoError(t, err)
 	assert.Equal(t, "https://new-url.com", retrievedURL2)
 }
 
 func TestFileRepo_AddBatch_DuplicateURLsInBatch(t *testing.T) {
 	repo, _ := setupTestFileRepo(t)
+	ctx := t.Context()
 
 	urls := []string{
 		"https://example.com",
@@ -93,7 +95,7 @@ func TestFileRepo_AddBatch_DuplicateURLsInBatch(t *testing.T) {
 		"https://google.com",
 		"https://example.com",
 	}
-	result, err := repo.AddBatch(context.TODO(), urls, "")
+	result, err := repo.AddBatch(ctx, urls, "")
 	assert.NoError(t, err)
 	assert.Len(t, result, 4)
 
@@ -102,7 +104,7 @@ func TestFileRepo_AddBatch_DuplicateURLsInBatch(t *testing.T) {
 	assert.NotEqual(t, result[0], result[2])
 
 	for _, alias := range result {
-		retrievedURL, err := repo.Get(context.TODO(), alias)
+		retrievedURL, err := repo.Get(ctx, alias)
 		assert.NoError(t, err)
 		assert.True(t, retrievedURL == "https://example.com" || retrievedURL == "https://google.com")
 	}
@@ -110,19 +112,20 @@ func TestFileRepo_AddBatch_DuplicateURLsInBatch(t *testing.T) {
 
 func TestFileRepo_AddBatch_LargeBatch(t *testing.T) {
 	repo, _ := setupTestFileRepo(t)
+	ctx := t.Context()
 
 	urls := make([]string, 100)
 	for i := 0; i < 100; i++ {
 		urls[i] = fmt.Sprintf("https://example%d.com", i)
 	}
 
-	result, err := repo.AddBatch(context.TODO(), urls, "")
+	result, err := repo.AddBatch(ctx, urls, "")
 	assert.NoError(t, err)
 	assert.Len(t, result, 100)
 
 	for i, alias := range result {
 		assert.NotEmpty(t, alias)
-		retrievedURL, err := repo.Get(context.TODO(), alias)
+		retrievedURL, err := repo.Get(ctx, alias)
 		assert.NoError(t, err)
 		assert.Equal(t, urls[i], retrievedURL)
 	}
@@ -135,6 +138,7 @@ func TestFileRepo_AddBatch_LargeBatch(t *testing.T) {
 }
 
 func TestFileRepo_AddBatch_RollbackOnFailure(t *testing.T) {
+	ctx := t.Context()
 
 	tempDir := t.TempDir()
 
@@ -145,13 +149,15 @@ func TestFileRepo_AddBatch_RollbackOnFailure(t *testing.T) {
 	repo := New(invalidPath)
 
 	urls := []string{"https://new1.com", "https://new2.com"}
-	result, err := repo.AddBatch(context.TODO(), urls, "")
+	result, err := repo.AddBatch(ctx, urls, "")
 
 	assert.Error(t, err)
 	assert.Nil(t, result)
 }
 
 func TestFileRepo_AddBatch_EmptyFile(t *testing.T) {
+	ctx := t.Context()
+
 	tempDir := t.TempDir()
 	filePath := filepath.Join(tempDir, "empty_urls.json")
 
@@ -161,28 +167,30 @@ func TestFileRepo_AddBatch_EmptyFile(t *testing.T) {
 
 	repo := New(filePath)
 	urls := []string{"https://emptyfile.com"}
-	result, err := repo.AddBatch(context.TODO(), urls, "")
+	result, err := repo.AddBatch(ctx, urls, "")
 
 	assert.NoError(t, err)
 	assert.Len(t, result, 1)
 
-	retrievedURL, err := repo.Get(context.TODO(), result[0])
+	retrievedURL, err := repo.Get(ctx, result[0])
 	assert.NoError(t, err)
 	assert.Equal(t, urls[0], retrievedURL)
 }
 
 func TestFileRepo_AddBatch_NonExistentFile(t *testing.T) {
+	ctx := t.Context()
+
 	tempDir := t.TempDir()
 	filePath := filepath.Join(tempDir, "nonexistent_urls.json")
 
 	repo := New(filePath)
 	urls := []string{"https://nonexistent.com"}
-	result, err := repo.AddBatch(context.TODO(), urls, "")
+	result, err := repo.AddBatch(ctx, urls, "")
 
 	assert.NoError(t, err)
 	assert.Len(t, result, 1)
 
-	retrievedURL, err := repo.Get(context.TODO(), result[0])
+	retrievedURL, err := repo.Get(ctx, result[0])
 	assert.NoError(t, err)
 	assert.Equal(t, urls[0], retrievedURL)
 

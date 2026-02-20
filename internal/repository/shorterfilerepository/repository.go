@@ -257,8 +257,8 @@ func (r *FileRepo) GetByUserID(ctx context.Context, userID string) ([]repository
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 
-	userURLs, exists := r.userToURLs[userID]
-	if !exists {
+	userURLs, ok := r.userToURLs[userID]
+	if !ok {
 		return []repository.UserURL{}, nil
 	}
 

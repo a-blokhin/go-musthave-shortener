@@ -44,27 +44,23 @@ func (u *Usecase) Execute(c *gin.Context) {
 
 	userID, exists := c.Get("userID")
 	if !exists {
-		u.logger.Info("User ID not found in context")
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": http.StatusText(http.StatusUnauthorized)})
 		return
 	}
 
 	userIDStr, ok := userID.(string)
 	if !ok {
-		u.logger.Info("Invalid user ID type in context")
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": http.StatusText(http.StatusUnauthorized)})
 		return
 	}
 
 	var shortURLs []string
 	if err := c.ShouldBindJSON(&shortURLs); err != nil {
-		u.logger.Info("Failed to parse request body", zap.Error(err))
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return
 	}
 
 	if len(shortURLs) == 0 {
-		u.logger.Info("Empty list of URLs provided for deletion")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "empty list of URLs"})
 		return
 	}

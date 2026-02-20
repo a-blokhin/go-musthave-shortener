@@ -63,14 +63,16 @@ func (d *DI) Init(config *config.Config) error {
 	if config.DatabaseDSN != "" {
 		db, err := database.New(config.DatabaseDSN)
 		if err != nil {
-			d.logger.Error("Failed to connect to database", zap.Error(err))
 			return err
 		}
 		d.db = db
 		d.logger.Info("Connected to PostgreSQL database")
 	}
 
-	d.initRepos()
+	err = d.initRepos()
+	if err != nil {
+		return err
+	}
 	d.initUsecases()
 	d.initMux()
 	d.initAPI()
@@ -78,13 +80,13 @@ func (d *DI) Init(config *config.Config) error {
 	return nil
 }
 
-func (d *DI) initRepos() {
+func (d *DI) initRepos() error {
 	if d.db != nil {
 		d.logger.Info("Using PostgreSQL database storage")
 
 		migrator := migration.New(d.logger, "migrations")
 		if err := migrator.Up(d.config.DatabaseDSN); err != nil {
-			d.logger.Fatal("Failed to run database migrations", zap.Error(err))
+			return err
 		}
 
 		postgresRepo := postgresrepository.New(d.db.Pool(), d.logger)
@@ -96,6 +98,7 @@ func (d *DI) initRepos() {
 		d.logger.Info("Using in-memory storage")
 		d.repos.shorterRepo = shorterrepository.New()
 	}
+	return nil
 }
 
 func (d *DI) initUsecases() {

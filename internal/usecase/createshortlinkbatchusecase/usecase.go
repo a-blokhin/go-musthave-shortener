@@ -2,6 +2,7 @@ package createshortlinkbatchusecase
 
 import (
 	"net/http"
+	"net/url"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -47,8 +48,8 @@ func (u *Usecase) Execute(c *gin.Context) {
 		return
 	}
 
-	userID, exists := middleware.GetUserID(c)
-	if !exists {
+	userID, err := middleware.GetUserID(c)
+	if err != nil {
 		userID = ""
 	}
 
@@ -65,7 +66,7 @@ func (u *Usecase) Execute(c *gin.Context) {
 	aliases, err := u.linkRepo.AddBatch(c.Request.Context(), urls, userID)
 	if err != nil {
 		u.logger.Error("Failed to create short URLs in batch", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": http.StatusText(http.StatusInternalServerError)})
 		return
 	}
 
@@ -73,15 +74,21 @@ func (u *Usecase) Execute(c *gin.Context) {
 		u.logger.Error("Mismatch between request count and aliases count",
 			zap.Int("request_count", len(req)),
 			zap.Int("aliases_count", len(aliases)))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": http.StatusText(http.StatusInternalServerError)})
 		return
 	}
 
 	resp := make([]ShortenBatchResponse, len(req))
 	for i, item := range req {
+		expectedResponse, err := url.JoinPath(u.baseURL, aliases[i])
+		if err != nil {
+			u.logger.Error("Failed to create expected response", zap.Error(err))
+			c.JSON(http.StatusInternalServerError, gin.H{"error": http.StatusText(http.StatusInternalServerError)})
+			return
+		}
 		resp[i] = ShortenBatchResponse{
 			CorrelationID: item.CorrelationID,
-			ShortURL:      u.baseURL + "/" + aliases[i],
+			ShortURL:      expectedResponse,
 		}
 	}
 

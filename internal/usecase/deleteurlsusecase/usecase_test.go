@@ -141,8 +141,8 @@ func TestDeleteURLs_NoUserID(t *testing.T) {
 		t.Errorf("Failed to unmarshal response: %v", err)
 	}
 
-	if response["error"] != "unauthorized" {
-		t.Errorf("expected error message 'unauthorized', got %s", response["error"])
+	if response["error"] != "Unauthorized" {
+		t.Errorf("expected error message 'Unauthorized', got %s", response["error"])
 	}
 }
 
@@ -172,8 +172,8 @@ func TestDeleteURLs_InvalidUserID(t *testing.T) {
 		t.Errorf("Failed to unmarshal response: %v", err)
 	}
 
-	if response["error"] != "unauthorized" {
-		t.Errorf("expected error message 'unauthorized', got %s", response["error"])
+	if response["error"] != "Unauthorized" {
+		t.Errorf("expected error message 'Unauthorized', got %s", response["error"])
 	}
 }
 

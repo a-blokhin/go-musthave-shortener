@@ -1,7 +1,6 @@
 package shorterrepository
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -10,7 +9,7 @@ import (
 
 func TestDeleteURLs(t *testing.T) {
 	repo := New()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	userID := "test-user"
 	otherUserID := "other-user"
@@ -51,7 +50,7 @@ func TestDeleteURLs(t *testing.T) {
 
 func TestDeleteURLs_EmptyList(t *testing.T) {
 	repo := New()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	userID := "test-user"
 
@@ -61,7 +60,7 @@ func TestDeleteURLs_EmptyList(t *testing.T) {
 
 func TestDeleteURLs_NonExistentURLs(t *testing.T) {
 	repo := New()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	userID := "test-user"
 
@@ -71,7 +70,7 @@ func TestDeleteURLs_NonExistentURLs(t *testing.T) {
 
 func TestDeleteURLs_MixedOwnership(t *testing.T) {
 	repo := New()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	userID := "test-user"
 	otherUserID := "other-user"
@@ -107,7 +106,7 @@ func TestDeleteURLs_MixedOwnership(t *testing.T) {
 
 func TestDeleteURLs_UserWithoutURLs(t *testing.T) {
 	repo := New()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	userID := "test-user"
 	otherUserID := "other-user"

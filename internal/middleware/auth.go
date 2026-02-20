@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -47,12 +48,16 @@ func AuthMiddleware(logger *zap.Logger) gin.HandlerFunc {
 	}
 }
 
-func GetUserID(c *gin.Context) (string, bool) {
+func GetUserID(c *gin.Context) (string, error) {
 	userID, exists := c.Get(userIDContextKey)
 	if !exists {
-		return "", false
+		return "", fmt.Errorf("user ID not found in context")
 	}
 
 	id, ok := userID.(string)
-	return id, ok
+	if !ok {
+		return "", fmt.Errorf("invalid user ID type in context")
+	}
+
+	return id, nil
 }

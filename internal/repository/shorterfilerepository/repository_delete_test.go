@@ -1,7 +1,6 @@
 package shorterfilerepository
 
 import (
-	"context"
 	"os"
 	"testing"
 
@@ -10,6 +9,7 @@ import (
 )
 
 func TestDeleteURLs(t *testing.T) {
+	ctx := t.Context()
 
 	tmpFile, err := os.CreateTemp("", "test_repo_*.json")
 	require.NoError(t, err)
@@ -17,7 +17,6 @@ func TestDeleteURLs(t *testing.T) {
 	tmpFile.Close()
 
 	repo := New(tmpFile.Name())
-	ctx := context.Background()
 
 	userID := "test-user"
 	otherUserID := "other-user"
@@ -71,6 +70,7 @@ func TestDeleteURLs(t *testing.T) {
 }
 
 func TestDeleteURLs_EmptyList(t *testing.T) {
+	ctx := t.Context()
 
 	tmpFile, err := os.CreateTemp("", "test_repo_*.json")
 	require.NoError(t, err)
@@ -78,7 +78,6 @@ func TestDeleteURLs_EmptyList(t *testing.T) {
 	tmpFile.Close()
 
 	repo := New(tmpFile.Name())
-	ctx := context.Background()
 
 	userID := "test-user"
 
@@ -87,6 +86,7 @@ func TestDeleteURLs_EmptyList(t *testing.T) {
 }
 
 func TestDeleteURLs_NonExistentURLs(t *testing.T) {
+	ctx := t.Context()
 
 	tmpFile, err := os.CreateTemp("", "test_repo_*.json")
 	require.NoError(t, err)
@@ -94,7 +94,6 @@ func TestDeleteURLs_NonExistentURLs(t *testing.T) {
 	tmpFile.Close()
 
 	repo := New(tmpFile.Name())
-	ctx := context.Background()
 
 	userID := "test-user"
 
@@ -103,6 +102,7 @@ func TestDeleteURLs_NonExistentURLs(t *testing.T) {
 }
 
 func TestDeleteURLs_MixedOwnership(t *testing.T) {
+	ctx := t.Context()
 
 	tmpFile, err := os.CreateTemp("", "test_repo_*.json")
 	require.NoError(t, err)
@@ -110,7 +110,6 @@ func TestDeleteURLs_MixedOwnership(t *testing.T) {
 	tmpFile.Close()
 
 	repo := New(tmpFile.Name())
-	ctx := context.Background()
 
 	userID := "test-user"
 	otherUserID := "other-user"
@@ -145,6 +144,7 @@ func TestDeleteURLs_MixedOwnership(t *testing.T) {
 }
 
 func TestDeleteURLs_UserWithoutURLs(t *testing.T) {
+	ctx := t.Context()
 
 	tmpFile, err := os.CreateTemp("", "test_repo_*.json")
 	require.NoError(t, err)
@@ -152,7 +152,6 @@ func TestDeleteURLs_UserWithoutURLs(t *testing.T) {
 	tmpFile.Close()
 
 	repo := New(tmpFile.Name())
-	ctx := context.Background()
 
 	userID := "test-user"
 	otherUserID := "other-user"
@@ -169,6 +168,7 @@ func TestDeleteURLs_UserWithoutURLs(t *testing.T) {
 }
 
 func TestDeleteURLs_FilePersistence(t *testing.T) {
+	ctx := t.Context()
 
 	tmpFile, err := os.CreateTemp("", "test_repo_*.json")
 	require.NoError(t, err)
@@ -176,7 +176,6 @@ func TestDeleteURLs_FilePersistence(t *testing.T) {
 	tmpFile.Close()
 
 	repo := New(tmpFile.Name())
-	ctx := context.Background()
 
 	userID := "test-user"
 
