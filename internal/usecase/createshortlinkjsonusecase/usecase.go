@@ -36,8 +36,8 @@ func (u *Usecase) Execute(c *gin.Context) {
 		return
 	}
 
-	reqUrl := strings.TrimSpace(req.URL)
-	if reqUrl == "" {
+	reqURL := strings.TrimSpace(req.URL)
+	if reqURL == "" {
 		u.logger.Info("Empty URL provided in request")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "URL is required"})
 		return
@@ -48,7 +48,7 @@ func (u *Usecase) Execute(c *gin.Context) {
 		userID = ""
 	}
 
-	alias, err := u.linkRepo.Add(c.Request.Context(), reqUrl, userID)
+	alias, err := u.linkRepo.Add(c.Request.Context(), reqURL, userID)
 	if err != nil {
 		var duplicateErr *model.DuplicateURLError
 		if errors.As(err, &duplicateErr) {
@@ -69,7 +69,7 @@ func (u *Usecase) Execute(c *gin.Context) {
 
 		u.logger.Error("Failed to create short URL",
 			zap.Error(err),
-			zap.String("url", reqUrl))
+			zap.String("url", reqURL))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": http.StatusText(http.StatusInternalServerError)})
 		return
 	}

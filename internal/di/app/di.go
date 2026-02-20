@@ -108,7 +108,7 @@ func (d *DI) initUsecases() {
 	d.usecases.redirectFromShortLink = redirectfromshortlinkusecase.New(d.repos.shorterRepo, d.logger)
 	d.usecases.getUserURLs = getuserurlsusecase.New(d.repos.shorterRepo, d.logger, d.config.BaseURL)
 	d.usecases.pingDatabase = pingdatabaseusecase.New(d.db, d.logger)
-	d.usecases.deleteURLs = deleteurlsusecase.New(d.repos.shorterRepo, d.logger)
+	d.usecases.deleteURLs = deleteurlsusecase.New(d.repos.shorterRepo, d.logger, d.config.DeleteURLs)
 }
 
 func (d *DI) initMux() {

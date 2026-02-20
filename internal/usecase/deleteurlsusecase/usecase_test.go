@@ -2,6 +2,7 @@ package deleteurlsusecase
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -25,11 +26,11 @@ func TestDeleteURLs_Success(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(1)
-	mockRepo.On("BatchDelete", mock.Anything, shortURLs, userID).Return(nil).Run(func(args mock.Arguments) {
+	mockRepo.EXPECT().BatchDelete(mock.Anything, shortURLs, userID).Return(nil).Run(func(ctx context.Context, urls []string, uid string) {
 		wg.Done()
 	})
 
-	usecase := New(mockRepo, zap.NewNop())
+	usecase := New(mockRepo, zap.NewNop(), DefaultConfig())
 	defer usecase.Close()
 
 	req := httptest.NewRequest("DELETE", "/api/user/urls", bytes.NewBuffer([]byte(`["abc123","def456","ghi789"]`)))
@@ -55,7 +56,7 @@ func TestDeleteURLs_EmptyList(t *testing.T) {
 
 	mockRepo := mocks.NewLinkRepo(t)
 
-	usecase := New(mockRepo, zap.NewNop())
+	usecase := New(mockRepo, zap.NewNop(), DefaultConfig())
 	defer usecase.Close()
 
 	req := httptest.NewRequest("DELETE", "/api/user/urls", bytes.NewBuffer([]byte(`[]`)))
@@ -88,7 +89,7 @@ func TestDeleteURLs_InvalidJSON(t *testing.T) {
 
 	mockRepo := mocks.NewLinkRepo(t)
 
-	usecase := New(mockRepo, zap.NewNop())
+	usecase := New(mockRepo, zap.NewNop(), DefaultConfig())
 	defer usecase.Close()
 
 	req := httptest.NewRequest("DELETE", "/api/user/urls", bytes.NewBuffer([]byte("invalid json")))
@@ -119,7 +120,7 @@ func TestDeleteURLs_InvalidJSON(t *testing.T) {
 func TestDeleteURLs_NoUserID(t *testing.T) {
 	mockRepo := mocks.NewLinkRepo(t)
 
-	usecase := New(mockRepo, zap.NewNop())
+	usecase := New(mockRepo, zap.NewNop(), DefaultConfig())
 	defer usecase.Close()
 
 	req := httptest.NewRequest("DELETE", "/api/user/urls", bytes.NewBuffer([]byte(`["abc123"]`)))
@@ -149,7 +150,7 @@ func TestDeleteURLs_NoUserID(t *testing.T) {
 func TestDeleteURLs_InvalidUserID(t *testing.T) {
 	mockRepo := mocks.NewLinkRepo(t)
 
-	usecase := New(mockRepo, zap.NewNop())
+	usecase := New(mockRepo, zap.NewNop(), DefaultConfig())
 	defer usecase.Close()
 
 	req := httptest.NewRequest("DELETE", "/api/user/urls", bytes.NewBuffer([]byte(`["abc123"]`)))
@@ -185,11 +186,11 @@ func TestDeleteURLs_RepositoryError(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(1)
-	mockRepo.On("BatchDelete", mock.Anything, shortURLs, userID).Return(errors.New("database error")).Run(func(args mock.Arguments) {
+	mockRepo.EXPECT().BatchDelete(mock.Anything, shortURLs, userID).Return(errors.New("database error")).Run(func(ctx context.Context, urls []string, uid string) {
 		wg.Done()
 	})
 
-	usecase := New(mockRepo, zap.NewNop())
+	usecase := New(mockRepo, zap.NewNop(), DefaultConfig())
 	defer usecase.Close()
 
 	req := httptest.NewRequest("DELETE", "/api/user/urls", bytes.NewBuffer([]byte(`["abc123","def456"]`)))
@@ -220,9 +221,9 @@ func TestDeleteURLs_BatchProcessing(t *testing.T) {
 
 	mockRepo := mocks.NewLinkRepo(t)
 
-	mockRepo.On("BatchDelete", mock.Anything, mock.AnythingOfType("[]string"), userID).Return(nil).Maybe()
+	mockRepo.EXPECT().BatchDelete(mock.Anything, mock.AnythingOfType("[]string"), userID).Return(nil).Maybe()
 
-	usecase := New(mockRepo, zap.NewNop())
+	usecase := New(mockRepo, zap.NewNop(), DefaultConfig())
 	defer usecase.Close()
 
 	jsonData, _ := json.Marshal(shortURLs)

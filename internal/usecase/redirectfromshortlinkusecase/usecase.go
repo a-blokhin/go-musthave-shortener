@@ -36,7 +36,8 @@ func (u *Usecase) Execute(c *gin.Context) {
 			zap.String("alias", alias),
 			zap.Error(err))
 
-		if errors.Is(err, &model.DeletedURLError{}) {
+		var deletedErr *model.DeletedURLError
+		if errors.As(err, &deletedErr) {
 			c.String(http.StatusGone, "Gone")
 			return
 		}

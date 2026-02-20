@@ -38,7 +38,7 @@ func TestUsecase_Execute(t *testing.T) {
 				},
 			},
 			mockSetup: func(m *mocks.LinkRepo) {
-				m.On("AddBatch", mock.Anything, []string{"https://practicum.yandex.ru"}, "").Return([]string{"abc123"}, nil)
+				m.EXPECT().AddBatch(mock.Anything, []string{"https://practicum.yandex.ru"}, "").Return([]string{"abc123"}, nil)
 			},
 			expectedStatus: http.StatusCreated,
 			expectedBody: createshortlinkbatchpkg.BatchResponse{
@@ -61,7 +61,7 @@ func TestUsecase_Execute(t *testing.T) {
 				},
 			},
 			mockSetup: func(m *mocks.LinkRepo) {
-				m.On("AddBatch", mock.Anything, []string{"https://practicum.yandex.ru", "https://example.com"}, "").Return([]string{"abc123", "def456"}, nil)
+				m.EXPECT().AddBatch(mock.Anything, []string{"https://practicum.yandex.ru", "https://example.com"}, "").Return([]string{"abc123", "def456"}, nil)
 			},
 			expectedStatus: http.StatusCreated,
 			expectedBody: createshortlinkbatchpkg.BatchResponse{
@@ -110,7 +110,7 @@ func TestUsecase_Execute(t *testing.T) {
 				},
 			},
 			mockSetup: func(m *mocks.LinkRepo) {
-				m.On("AddBatch", mock.Anything, []string{"https://example.com"}, "").Return([]string{}, errors.New("database error"))
+				m.EXPECT().AddBatch(mock.Anything, []string{"https://example.com"}, "").Return([]string{}, errors.New("database error"))
 			},
 			expectedStatus: http.StatusInternalServerError,
 			expectedBody:   map[string]string{"error": "Internal Server Error"},
