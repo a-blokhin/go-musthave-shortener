@@ -16,6 +16,7 @@ import (
 	"go-musthave-shortener/internal/repository/postgresrepository"
 	"go-musthave-shortener/internal/repository/shorterfilerepository"
 	"go-musthave-shortener/internal/repository/shorterrepository"
+	"go-musthave-shortener/internal/usecase/createshortlinkbatchusecase"
 	"go-musthave-shortener/internal/usecase/createshortlinkjsonusecase"
 	"go-musthave-shortener/internal/usecase/createshortlinkusecase"
 	"go-musthave-shortener/internal/usecase/pingdatabaseusecase"
@@ -31,6 +32,7 @@ type DI struct {
 
 	usecases struct {
 		createShortLink       *createshortlinkusecase.Usecase
+		createShortLinkBatch  *createshortlinkbatchusecase.Usecase
 		createShortLinkJSON   *createshortlinkjsonusecase.Usecase
 		redirectFromShortLink *redirectfromshortlinkusecase.Usecase
 		pingDatabase          *pingdatabaseusecase.Usecase
@@ -94,6 +96,7 @@ func (d *DI) initRepos() {
 
 func (d *DI) initUsecases() {
 	d.usecases.createShortLink = createshortlinkusecase.New(d.repos.shorterRepo, d.logger, d.config.BaseURL)
+	d.usecases.createShortLinkBatch = createshortlinkbatchusecase.New(d.repos.shorterRepo, d.logger, d.config.BaseURL)
 	d.usecases.createShortLinkJSON = createshortlinkjsonusecase.New(d.repos.shorterRepo, d.logger, d.config.BaseURL)
 	d.usecases.redirectFromShortLink = redirectfromshortlinkusecase.New(d.repos.shorterRepo, d.logger)
 	d.usecases.pingDatabase = pingdatabaseusecase.New(d.db, d.logger)
@@ -112,6 +115,7 @@ func (d *DI) initAPI() {
 		d.config.BaseURL,
 		d.usecases.createShortLink,
 		d.usecases.createShortLinkJSON,
+		d.usecases.createShortLinkBatch,
 		d.usecases.redirectFromShortLink,
 		d.usecases.pingDatabase,
 	)
