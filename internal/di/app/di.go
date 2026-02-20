@@ -11,7 +11,9 @@ import (
 	"go-musthave-shortener/internal/config"
 	"go-musthave-shortener/internal/database"
 	"go-musthave-shortener/internal/middleware"
+	"go-musthave-shortener/internal/migration"
 	"go-musthave-shortener/internal/repository"
+	"go-musthave-shortener/internal/repository/postgresrepository"
 	"go-musthave-shortener/internal/repository/shorterfilerepository"
 	"go-musthave-shortener/internal/repository/shorterrepository"
 	"go-musthave-shortener/internal/usecase/createshortlinkjsonusecase"
@@ -71,7 +73,17 @@ func (d *DI) Init(config *config.Config) error {
 }
 
 func (d *DI) initRepos() {
-	if d.config.FileStoragePath != "" {
+	if d.db != nil {
+		d.logger.Info("Using PostgreSQL database storage")
+
+		migrator := migration.New(d.logger, "migrations")
+		if err := migrator.Up(d.config.DatabaseDSN); err != nil {
+			d.logger.Fatal("Failed to run database migrations", zap.Error(err))
+		}
+
+		postgresRepo := postgresrepository.New(d.db.Pool(), d.logger)
+		d.repos.shorterRepo = postgresRepo
+	} else if d.config.FileStoragePath != "" {
 		d.logger.Info("Using file storage", zap.String("path", d.config.FileStoragePath))
 		d.repos.shorterRepo = shorterfilerepository.New(d.config.FileStoragePath)
 	} else {
