@@ -1,6 +1,9 @@
 package createshortlinkusecase
 
 import (
+	"context"
+	"errors"
+	"go-musthave-shortener/internal/model"
 	"io"
 	"net/http"
 	"strings"
@@ -23,30 +26,35 @@ func New(linkRepo LinkRepo, logger *zap.Logger, baseURL string) *Usecase {
 	}
 }
 
-
 func (u *Usecase) Execute(c *gin.Context) {
+	ctx := context.TODO()
+
 	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
-		u.logger.Error("Failed to read request body", 
-			zap.Error(err))
+		u.logger.Error("Failed to read request body", zap.Error(err))
 		c.String(http.StatusBadRequest, "Bad Request")
 		return
 	}
 	defer c.Request.Body.Close()
 
-	url := strings.TrimSpace(string(body))
-	if url == "" {
+	urlStr := strings.TrimSpace(string(body))
+	if urlStr == "" {
 		u.logger.Info("Empty URL provided in request")
 		c.String(http.StatusBadRequest, "Bad Request: URL is required")
 		return
 	}
 
-	
-	alias, err := u.linkRepo.Add(url)
+	alias, err := u.linkRepo.Add(ctx, urlStr)
 	if err != nil {
-		u.logger.Error("Failed to create short URL", 
-			zap.Error(err), 
-			zap.String("url", url))
+		var dup *model.DuplicateURLError
+		if errors.As(err, &dup) {
+			c.String(http.StatusConflict, u.baseURL+"/"+dup.ExistingShortURL)
+			return
+		}
+
+		u.logger.Error("Failed to create short URL",
+			zap.Error(err),
+			zap.String("url", urlStr))
 		c.String(http.StatusInternalServerError, "Internal Server Error")
 		return
 	}

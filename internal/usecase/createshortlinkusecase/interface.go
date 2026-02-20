@@ -1,5 +1,8 @@
 package createshortlinkusecase
 
+import "context"
+
+//go:generate mockery --name=LinkRepo --output=./mocks --outpkg=mocks --with-expecter
 type LinkRepo interface {
-	Add(url string) (string, error)
+	Add(ctx context.Context, url string) (string, error)
 }

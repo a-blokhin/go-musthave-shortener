@@ -1,13 +1,14 @@
 package shorterrepository
 
 import (
+	"context"
 	"testing"
 )
 
 func TestRepo_AddBatch(t *testing.T) {
 	repo := New()
 
-	aliases, err := repo.AddBatch([]string{})
+	aliases, err := repo.AddBatch(context.TODO(), []string{})
 	if err != nil {
 		t.Fatalf("AddBatch() with empty slice returned an error: %v", err)
 	}
@@ -16,7 +17,7 @@ func TestRepo_AddBatch(t *testing.T) {
 	}
 
 	urls := []string{"https://example.com"}
-	aliases, err = repo.AddBatch(urls)
+	aliases, err = repo.AddBatch(context.TODO(), urls)
 	if err != nil {
 		t.Fatalf("AddBatch() returned an error: %v", err)
 	}
@@ -27,7 +28,7 @@ func TestRepo_AddBatch(t *testing.T) {
 		t.Errorf("expected alias length to be %d, got %d", repo.aliasLength, len(aliases[0]))
 	}
 
-	retrievedURL, err := repo.Get(aliases[0])
+	retrievedURL, err := repo.Get(context.TODO(), aliases[0])
 	if err != nil {
 		t.Fatalf("Get() returned an error: %v", err)
 	}
@@ -40,7 +41,7 @@ func TestRepo_AddBatch(t *testing.T) {
 		"https://example2.com",
 		"https://example3.com",
 	}
-	aliases, err = repo.AddBatch(urls)
+	aliases, err = repo.AddBatch(context.TODO(), urls)
 	if err != nil {
 		t.Fatalf("AddBatch() returned an error: %v", err)
 	}
@@ -49,7 +50,7 @@ func TestRepo_AddBatch(t *testing.T) {
 	}
 
 	for i, url := range urls {
-		retrievedURL, err := repo.Get(aliases[i])
+		retrievedURL, err := repo.Get(context.TODO(), aliases[i])
 		if err != nil {
 			t.Fatalf("Get() returned an error: %v", err)
 		}
@@ -63,7 +64,7 @@ func TestRepo_AddBatch(t *testing.T) {
 		"https://duplicate1.com",
 		"https://duplicate2.com",
 	}
-	aliases, err = repo.AddBatch(urls)
+	aliases, err = repo.AddBatch(context.TODO(), urls)
 	if err != nil {
 		t.Fatalf("AddBatch() with duplicates returned an error: %v", err)
 	}
@@ -76,13 +77,13 @@ func TestRepo_AddBatch(t *testing.T) {
 	}
 
 	existingURL := "https://existing.com"
-	existingAlias, err := repo.Add(existingURL)
+	existingAlias, err := repo.Add(context.TODO(), existingURL)
 	if err != nil {
 		t.Fatalf("Add() returned an error: %v", err)
 	}
 
 	urls = []string{existingURL, "https://new.com"}
-	aliases, err = repo.AddBatch(urls)
+	aliases, err = repo.AddBatch(context.TODO(), urls)
 	if err != nil {
 		t.Fatalf("AddBatch() with existing URL returned an error: %v", err)
 	}
@@ -98,7 +99,7 @@ func TestRepo_AddBatch(t *testing.T) {
 	for i := range urls {
 		urls[i] = "https://example" + string(rune(i)) + ".com"
 	}
-	aliases, err = repo.AddBatch(urls)
+	aliases, err = repo.AddBatch(context.TODO(), urls)
 	if err != nil {
 		t.Fatalf("AddBatch() with large batch returned an error: %v", err)
 	}

@@ -1,5 +1,8 @@
 package redirectfromshortlinkusecase
 
+import "context"
+
+//go:generate mockery --name=LinkRepo --output=./mocks --outpkg=mocks --with-expecter
 type LinkRepo interface {
-	Get(alias string) (string, error)
+	Get(ctx context.Context, alias string) (string, error)
 }

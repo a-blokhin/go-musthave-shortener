@@ -15,10 +15,6 @@ type DB struct {
 
 // New creates a new database connection
 func New(dsn string) (*DB, error) {
-	if dsn == "" {
-		return nil, nil // No database configured
-	}
-
 	config, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse database config: %w", err)
@@ -49,9 +45,6 @@ func New(dsn string) (*DB, error) {
 
 // Ping checks the database connectivity
 func (db *DB) Ping(ctx context.Context) error {
-	if db == nil || db.pool == nil {
-		return fmt.Errorf("database connection not initialized")
-	}
 	return db.pool.Ping(ctx)
 }
 

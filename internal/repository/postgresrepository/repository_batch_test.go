@@ -14,6 +14,7 @@ import (
 )
 
 func setupTestPostgresRepo(t *testing.T) (*PostgresRepo, func()) {
+	t.Helper()
 	testDSN := "postgres://postgres:postgres@localhost:5432/test_shortener?sslmode=disable"
 
 	db, err := database.New(testDSN)
@@ -45,17 +46,17 @@ func TestPostgresRepo_AddBatch(t *testing.T) {
 	repo, cleanup := setupTestPostgresRepo(t)
 	defer cleanup()
 
-	result, err := repo.AddBatch([]string{})
+	result, err := repo.AddBatch(context.TODO(), []string{})
 	assert.NoError(t, err)
 	assert.Empty(t, result)
 
 	urls := []string{"https://example.com"}
-	result, err = repo.AddBatch(urls)
+	result, err = repo.AddBatch(context.TODO(), urls)
 	assert.NoError(t, err)
 	assert.Len(t, result, 1)
 	assert.NotEmpty(t, result[0])
 
-	retrievedURL, err := repo.Get(result[0])
+	retrievedURL, err := repo.Get(context.TODO(), result[0])
 	assert.NoError(t, err)
 	assert.Equal(t, urls[0], retrievedURL)
 
@@ -64,13 +65,13 @@ func TestPostgresRepo_AddBatch(t *testing.T) {
 		"https://example.com",
 		"https://google.com",
 	}
-	result, err = repo.AddBatch(urls)
+	result, err = repo.AddBatch(context.TODO(), urls)
 	assert.NoError(t, err)
 	assert.Len(t, result, 3)
 
 	for i, alias := range result {
 		assert.NotEmpty(t, alias)
-		retrievedURL, err := repo.Get(alias)
+		retrievedURL, err := repo.Get(context.TODO(), alias)
 		assert.NoError(t, err)
 		assert.Equal(t, urls[i], retrievedURL)
 	}
@@ -90,11 +91,11 @@ func TestPostgresRepo_AddBatch_ExistingURLs(t *testing.T) {
 	repo, cleanup := setupTestPostgresRepo(t)
 	defer cleanup()
 
-	originalAlias, err := repo.Add("https://example.com")
+	originalAlias, err := repo.Add(context.TODO(), "https://example.com")
 	assert.NoError(t, err)
 
 	urls := []string{"https://example.com", "https://new-url.com"}
-	result, err := repo.AddBatch(urls)
+	result, err := repo.AddBatch(context.TODO(), urls)
 	assert.NoError(t, err)
 	assert.Len(t, result, 2)
 
@@ -103,11 +104,11 @@ func TestPostgresRepo_AddBatch_ExistingURLs(t *testing.T) {
 	assert.NotEmpty(t, result[1])
 	assert.NotEqual(t, originalAlias, result[1])
 
-	retrievedURL1, err := repo.Get(result[0])
+	retrievedURL1, err := repo.Get(context.TODO(), result[0])
 	assert.NoError(t, err)
 	assert.Equal(t, "https://example.com", retrievedURL1)
 
-	retrievedURL2, err := repo.Get(result[1])
+	retrievedURL2, err := repo.Get(context.TODO(), result[1])
 	assert.NoError(t, err)
 	assert.Equal(t, "https://new-url.com", retrievedURL2)
 }
@@ -126,7 +127,7 @@ func TestPostgresRepo_AddBatch_DuplicateURLsInBatch(t *testing.T) {
 		"https://google.com",
 		"https://example.com",
 	}
-	result, err := repo.AddBatch(urls)
+	result, err := repo.AddBatch(context.TODO(), urls)
 	assert.NoError(t, err)
 	assert.Len(t, result, 4)
 
@@ -135,7 +136,7 @@ func TestPostgresRepo_AddBatch_DuplicateURLsInBatch(t *testing.T) {
 	assert.NotEqual(t, result[0], result[2])
 
 	for _, alias := range result {
-		retrievedURL, err := repo.Get(alias)
+		retrievedURL, err := repo.Get(context.TODO(), alias)
 		assert.NoError(t, err)
 		assert.True(t, retrievedURL == "https://example.com" || retrievedURL == "https://google.com")
 	}
@@ -154,13 +155,13 @@ func TestPostgresRepo_AddBatch_LargeBatch(t *testing.T) {
 		urls[i] = fmt.Sprintf("https://example%d.com", i)
 	}
 
-	result, err := repo.AddBatch(urls)
+	result, err := repo.AddBatch(context.TODO(), urls)
 	assert.NoError(t, err)
 	assert.Len(t, result, 100)
 
 	for i, alias := range result {
 		assert.NotEmpty(t, alias)
-		retrievedURL, err := repo.Get(alias)
+		retrievedURL, err := repo.Get(context.TODO(), alias)
 		assert.NoError(t, err)
 		assert.Equal(t, urls[i], retrievedURL)
 	}
@@ -194,7 +195,7 @@ func TestPostgresRepo_AddBatch_ConcurrentAccess(t *testing.T) {
 				urls[j] = fmt.Sprintf("https://concurrent%d-%d.com", index, j)
 			}
 
-			results[index], errors[index] = repo.AddBatch(urls)
+			results[index], errors[index] = repo.AddBatch(context.TODO(), urls)
 		}(i)
 	}
 
@@ -210,7 +211,7 @@ func TestPostgresRepo_AddBatch_ConcurrentAccess(t *testing.T) {
 			alias := results[i][j]
 			expectedURL := fmt.Sprintf("https://concurrent%d-%d.com", i, j)
 
-			retrievedURL, err := repo.Get(alias)
+			retrievedURL, err := repo.Get(context.TODO(), alias)
 			assert.NoError(t, err)
 			assert.Equal(t, expectedURL, retrievedURL)
 		}
@@ -244,7 +245,7 @@ func TestPostgresRepo_AddBatch_ConcurrentSameURLs(t *testing.T) {
 			defer wg.Done()
 
 			urls := []string{testURL}
-			results[index], errors[index] = repo.AddBatch(urls)
+			results[index], errors[index] = repo.AddBatch(context.TODO(), urls)
 		}(i)
 	}
 
@@ -260,7 +261,7 @@ func TestPostgresRepo_AddBatch_ConcurrentSameURLs(t *testing.T) {
 		assert.Equal(t, firstAlias, results[i][0], "All batches should return the same alias for the same URL")
 	}
 
-	retrievedURL, err := repo.Get(firstAlias)
+	retrievedURL, err := repo.Get(context.TODO(), firstAlias)
 	assert.NoError(t, err)
 	assert.Equal(t, testURL, retrievedURL)
 }
@@ -273,21 +274,21 @@ func TestPostgresRepo_AddBatch_TransactionHandling(t *testing.T) {
 	repo, cleanup := setupTestPostgresRepo(t)
 	defer cleanup()
 
-	initialAlias, err := repo.Add("https://initial.com")
+	initialAlias, err := repo.Add(context.TODO(), "https://initial.com")
 	require.NoError(t, err)
 
 	urls := []string{"https://success1.com", "https://success2.com"}
-	result, err := repo.AddBatch(urls)
+	result, err := repo.AddBatch(context.TODO(), urls)
 	assert.NoError(t, err)
 	assert.Len(t, result, 2)
 
 	for i, alias := range result {
-		retrievedURL, err := repo.Get(alias)
+		retrievedURL, err := repo.Get(context.TODO(), alias)
 		assert.NoError(t, err)
 		assert.Equal(t, urls[i], retrievedURL)
 	}
 
-	retrievedURL, err := repo.Get(initialAlias)
+	retrievedURL, err := repo.Get(context.TODO(), initialAlias)
 	assert.NoError(t, err)
 	assert.Equal(t, "https://initial.com", retrievedURL)
 }
@@ -314,7 +315,7 @@ func TestPostgresRepo_AddBatch_Isolation(t *testing.T) {
 				fmt.Sprintf("https://isolation%d-2.com", index),
 			}
 
-			results[index], errors[index] = repo.AddBatch(urls)
+			results[index], errors[index] = repo.AddBatch(context.TODO(), urls)
 		}(i)
 	}
 
@@ -330,7 +331,7 @@ func TestPostgresRepo_AddBatch_Isolation(t *testing.T) {
 			alias := results[i][j]
 			expectedURL := fmt.Sprintf("https://isolation%d-%d.com", i, j+1)
 
-			retrievedURL, err := repo.Get(alias)
+			retrievedURL, err := repo.Get(context.TODO(), alias)
 			assert.NoError(t, err)
 			assert.Equal(t, expectedURL, retrievedURL)
 		}

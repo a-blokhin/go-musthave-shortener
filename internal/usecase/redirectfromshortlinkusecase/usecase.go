@@ -1,6 +1,7 @@
 package redirectfromshortlinkusecase
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -19,8 +20,8 @@ func New(linkRepo LinkRepo, logger *zap.Logger) *Usecase {
 	}
 }
 
-
 func (u *Usecase) Execute(c *gin.Context) {
+	ctx := context.TODO()
 	alias := c.Param("id")
 	if alias == "" {
 		u.logger.Info("Empty alias parameter in redirect request")
@@ -28,11 +29,10 @@ func (u *Usecase) Execute(c *gin.Context) {
 		return
 	}
 
-	
-	originalURL, err := u.linkRepo.Get(alias)
+	originalURL, err := u.linkRepo.Get(ctx, alias)
 	if err != nil {
-		u.logger.Info("Failed to find original URL for alias", 
-			zap.Error(err), 
+		u.logger.Info("Failed to find original URL for alias",
+			zap.Error(err),
 			zap.String("alias", alias))
 		c.String(http.StatusNotFound, "alias %q not found", alias)
 		return

@@ -5,37 +5,24 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/mock"
 	"go.uber.org/zap"
+
+	"go-musthave-shortener/internal/usecase/createshortlinkusecase/mocks"
 )
-
-type MockLinkRepo struct {
-	AddFunc func(url string) (string, error)
-}
-
-func (m *MockLinkRepo) Add(url string) (string, error) {
-	if m.AddFunc != nil {
-		return m.AddFunc(url)
-	}
-	return "", nil
-}
 
 func TestCreateShortURL_Success(t *testing.T) {
 	baseURL := "http://example.com"
 	testURL := "https://example.org/long/path"
 	expectedAlias := "abcd1234"
 
-	mockRepo := &MockLinkRepo{
-		AddFunc: func(url string) (string, error) {
-			if url != testURL {
-				t.Errorf("Expected URL %s, got %s", testURL, url)
-			}
-			return expectedAlias, nil
-		},
-	}
+	mockRepo := mocks.NewLinkRepo(t)
+	mockRepo.On("Add", mock.Anything, testURL).Return(expectedAlias, nil)
 
 	usecase := New(mockRepo, zap.NewNop(), baseURL)
 
@@ -53,7 +40,10 @@ func TestCreateShortURL_Success(t *testing.T) {
 		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusCreated)
 	}
 
-	expectedResponse := baseURL + "/" + expectedAlias
+	expectedResponse, err := url.JoinPath(baseURL, expectedAlias)
+	if err != nil {
+		t.Errorf("Failed to create expected response: %v", err)
+	}
 	if rr.Body.String() != expectedResponse {
 		t.Errorf("handler returned unexpected body: got %v want %v", rr.Body.String(), expectedResponse)
 	}
@@ -65,7 +55,7 @@ func TestCreateShortURL_Success(t *testing.T) {
 
 func TestCreateShortURL_EmptyURL(t *testing.T) {
 	baseURL := "http://example.com"
-	mockRepo := &MockLinkRepo{}
+	mockRepo := mocks.NewLinkRepo(t)
 
 	usecase := New(mockRepo, zap.NewNop(), baseURL)
 
@@ -92,11 +82,8 @@ func TestCreateShortURL_UsecaseError(t *testing.T) {
 	baseURL := "http://example.com"
 	testURL := "https://example.org/long/path"
 
-	mockRepo := &MockLinkRepo{
-		AddFunc: func(url string) (string, error) {
-			return "", io.EOF
-		},
-	}
+	mockRepo := mocks.NewLinkRepo(t)
+	mockRepo.On("Add", mock.Anything, testURL).Return("", io.EOF)
 
 	usecase := New(mockRepo, zap.NewNop(), baseURL)
 
