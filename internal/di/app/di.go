@@ -9,12 +9,14 @@ import (
 
 	"go-musthave-shortener/internal/api/shorterapi"
 	"go-musthave-shortener/internal/config"
+	"go-musthave-shortener/internal/database"
 	"go-musthave-shortener/internal/middleware"
 	"go-musthave-shortener/internal/repository"
 	"go-musthave-shortener/internal/repository/shorterfilerepository"
 	"go-musthave-shortener/internal/repository/shorterrepository"
 	"go-musthave-shortener/internal/usecase/createshortlinkjsonusecase"
 	"go-musthave-shortener/internal/usecase/createshortlinkusecase"
+	"go-musthave-shortener/internal/usecase/pingdatabaseusecase"
 	"go-musthave-shortener/internal/usecase/redirectfromshortlinkusecase"
 )
 
@@ -23,11 +25,13 @@ type DI struct {
 	api    *shorterapi.ShortAPI
 	config *config.Config
 	logger *zap.Logger
+	db     *database.DB
 
 	usecases struct {
 		createShortLink       *createshortlinkusecase.Usecase
 		createShortLinkJSON   *createshortlinkjsonusecase.Usecase
 		redirectFromShortLink *redirectfromshortlinkusecase.Usecase
+		pingDatabase          *pingdatabaseusecase.Usecase
 	}
 
 	repos struct {
@@ -37,21 +41,33 @@ type DI struct {
 	httpServer *http.Server
 }
 
-func (d *DI) Init(config *config.Config) {
+func (d *DI) Init(config *config.Config) error {
 	d.config = config
 
 	loggerConfig := zap.NewProductionConfig()
 	loggerConfig.Level = zap.NewAtomicLevelAt(zap.InfoLevel)
 	logger, err := loggerConfig.Build()
 	if err != nil {
-		panic(err)
+		return err
 	}
 	d.logger = logger
+
+	if config.DatabaseDSN != "" {
+		db, err := database.New(config.DatabaseDSN)
+		if err != nil {
+			d.logger.Error("Failed to connect to database", zap.Error(err))
+			return err
+		}
+		d.db = db
+		d.logger.Info("Connected to PostgreSQL database")
+	}
 
 	d.initRepos()
 	d.initUsecases()
 	d.initMux()
 	d.initAPI()
+
+	return nil
 }
 
 func (d *DI) initRepos() {
@@ -68,6 +84,7 @@ func (d *DI) initUsecases() {
 	d.usecases.createShortLink = createshortlinkusecase.New(d.repos.shorterRepo, d.logger, d.config.BaseURL)
 	d.usecases.createShortLinkJSON = createshortlinkjsonusecase.New(d.repos.shorterRepo, d.logger, d.config.BaseURL)
 	d.usecases.redirectFromShortLink = redirectfromshortlinkusecase.New(d.repos.shorterRepo, d.logger)
+	d.usecases.pingDatabase = pingdatabaseusecase.New(d.db, d.logger)
 }
 
 func (d *DI) initMux() {
@@ -84,6 +101,7 @@ func (d *DI) initAPI() {
 		d.usecases.createShortLink,
 		d.usecases.createShortLinkJSON,
 		d.usecases.redirectFromShortLink,
+		d.usecases.pingDatabase,
 	)
 	d.api.RegisterHandlers(d.router)
 }
@@ -98,6 +116,11 @@ func (d *DI) StartServer() error {
 }
 
 func (d *DI) StopServer(ctx context.Context) error {
+	// Close database connection
+	if d.db != nil {
+		d.db.Close()
+	}
+
 	if d.httpServer != nil {
 		return d.httpServer.Shutdown(ctx)
 	}
