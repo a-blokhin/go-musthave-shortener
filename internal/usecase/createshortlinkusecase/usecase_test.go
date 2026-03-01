@@ -22,7 +22,7 @@ func TestCreateShortURL_Success(t *testing.T) {
 	expectedAlias := "abcd1234"
 
 	mockRepo := mocks.NewLinkRepo(t)
-	mockRepo.On("Add", mock.Anything, testURL).Return(expectedAlias, nil)
+	mockRepo.On("Add", mock.Anything, testURL, "").Return(expectedAlias, nil)
 
 	usecase := New(mockRepo, zap.NewNop(), baseURL)
 
@@ -83,7 +83,7 @@ func TestCreateShortURL_UsecaseError(t *testing.T) {
 	testURL := "https://example.org/long/path"
 
 	mockRepo := mocks.NewLinkRepo(t)
-	mockRepo.On("Add", mock.Anything, testURL).Return("", io.EOF)
+	mockRepo.On("Add", mock.Anything, testURL, "").Return("", io.EOF)
 
 	usecase := New(mockRepo, zap.NewNop(), baseURL)
 

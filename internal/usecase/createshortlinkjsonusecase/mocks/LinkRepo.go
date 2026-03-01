@@ -21,9 +21,9 @@ func (_m *LinkRepo) EXPECT() *LinkRepo_Expecter {
 	return &LinkRepo_Expecter{mock: &_m.Mock}
 }
 
-// Add provides a mock function with given fields: ctx, url
-func (_m *LinkRepo) Add(ctx context.Context, url string) (string, error) {
-	ret := _m.Called(ctx, url)
+// Add provides a mock function with given fields: ctx, url, userID
+func (_m *LinkRepo) Add(ctx context.Context, url string, userID string) (string, error) {
+	ret := _m.Called(ctx, url, userID)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Add")
@@ -31,17 +31,17 @@ func (_m *LinkRepo) Add(ctx context.Context, url string) (string, error) {
 
 	var r0 string
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) (string, error)); ok {
-		return rf(ctx, url)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) (string, error)); ok {
+		return rf(ctx, url, userID)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) string); ok {
-		r0 = rf(ctx, url)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) string); ok {
+		r0 = rf(ctx, url, userID)
 	} else {
 		r0 = ret.Get(0).(string)
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = rf(ctx, url)
+	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
+		r1 = rf(ctx, url, userID)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -57,13 +57,14 @@ type LinkRepo_Add_Call struct {
 // Add is a helper method to define mock.On call
 //   - ctx context.Context
 //   - url string
-func (_e *LinkRepo_Expecter) Add(ctx interface{}, url interface{}) *LinkRepo_Add_Call {
-	return &LinkRepo_Add_Call{Call: _e.mock.On("Add", ctx, url)}
+//   - userID string
+func (_e *LinkRepo_Expecter) Add(ctx interface{}, url interface{}, userID interface{}) *LinkRepo_Add_Call {
+	return &LinkRepo_Add_Call{Call: _e.mock.On("Add", ctx, url, userID)}
 }
 
-func (_c *LinkRepo_Add_Call) Run(run func(ctx context.Context, url string)) *LinkRepo_Add_Call {
+func (_c *LinkRepo_Add_Call) Run(run func(ctx context.Context, url string, userID string)) *LinkRepo_Add_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string))
+		run(args[0].(context.Context), args[1].(string), args[2].(string))
 	})
 	return _c
 }
@@ -73,7 +74,7 @@ func (_c *LinkRepo_Add_Call) Return(alias string, err error) *LinkRepo_Add_Call 
 	return _c
 }
 
-func (_c *LinkRepo_Add_Call) RunAndReturn(run func(context.Context, string) (string, error)) *LinkRepo_Add_Call {
+func (_c *LinkRepo_Add_Call) RunAndReturn(run func(context.Context, string, string) (string, error)) *LinkRepo_Add_Call {
 	_c.Call.Return(run)
 	return _c
 }

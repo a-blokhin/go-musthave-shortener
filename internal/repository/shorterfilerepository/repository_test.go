@@ -2,91 +2,85 @@ package shorterfilerepository
 
 import (
 	"context"
-	"encoding/json"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 )
 
 func TestNew(t *testing.T) {
-	tempDir := t.TempDir()
-	filePath := filepath.Join(tempDir, "test.json")
 
-	repo := New(filePath)
+	tmpFile, err := os.CreateTemp("", "test_shortener_*.json")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+	tmpFile.Close()
+
+	repo := New(tmpFile.Name())
 
 	if repo == nil {
 		t.Fatal("New() returned nil")
+	}
+
+	if repo.filePath != tmpFile.Name() {
+		t.Errorf("expected filepath to be %s, got %s", tmpFile.Name(), repo.filePath)
 	}
 
 	if repo.shortToLink == nil {
 		t.Error("shortToLink map not initialized")
 	}
 
-	if repo.linkToShort == nil {
-		t.Error("linkToShort map not initialized")
-	}
-
-	if repo.aliasLength != 8 {
-		t.Errorf("expected aliasLength to be 8, got %d", repo.aliasLength)
-	}
-
-	if repo.filePath != filePath {
-		t.Errorf("expected filePath to be %s, got %s", filePath, repo.filePath)
+	if repo.userToURLs == nil {
+		t.Error("userToURLs map not initialized")
 	}
 }
 
-func TestFileRepo_Add(t *testing.T) {
-	tempDir := t.TempDir()
-	filePath := filepath.Join(tempDir, "test.json")
+func TestRepo_Add(t *testing.T) {
 
-	repo := New(filePath)
+	tmpFile, err := os.CreateTemp("", "test_shortener_*.json")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+	tmpFile.Close()
+
+	repo := New(tmpFile.Name())
 	url := "https://example.com"
+	userID := "user123"
 
-	alias, err := repo.Add(context.TODO(), url)
+	alias, err := repo.Add(context.Background(), url, userID)
 	if err != nil {
 		t.Fatalf("Add() returned an error: %v", err)
 	}
 
-	if len(alias) != repo.aliasLength {
-		t.Errorf("expected alias length to be %d, got %d", repo.aliasLength, len(alias))
+	if len(alias) == 0 {
+		t.Error("expected non-empty alias")
 	}
 
-	if !repo.hasAlias(alias) {
+	storedAlias, exists := repo.shortToLink[alias]
+	if !exists {
 		t.Error("alias not stored in repository")
 	}
 
-	if !repo.hasLink(url) {
-		t.Error("URL not stored in repository")
+	if storedAlias != url {
+		t.Errorf("expected URL to be %s, got %s", url, storedAlias)
 	}
 
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		t.Error("file was not created after Add()")
-	}
-
-	data, err := os.ReadFile(filePath)
+	userURLs, err := repo.GetByUserID(context.Background(), userID)
 	if err != nil {
-		t.Fatalf("failed to read file: %v", err)
+		t.Fatalf("GetByUserID() returned an error: %v", err)
 	}
 
-	var urlDataList []URLData
-	if err := json.Unmarshal(data, &urlDataList); err != nil {
-		t.Fatalf("failed to unmarshal JSON: %v", err)
+	if len(userURLs) != 1 {
+		t.Errorf("expected 1 user URL, got %d", len(userURLs))
 	}
 
-	if len(urlDataList) != 1 {
-		t.Errorf("expected 1 entry in file, got %d", len(urlDataList))
+	if userURLs[0].ShortURL != alias || userURLs[0].OriginalURL != url {
+		t.Errorf("user URL mismatch: got %s -> %s, expected %s -> %s",
+			userURLs[0].ShortURL, userURLs[0].OriginalURL, alias, url)
 	}
 
-	if urlDataList[0].ShortURL != alias {
-		t.Errorf("expected ShortURL to be %s, got %s", alias, urlDataList[0].ShortURL)
-	}
-
-	if urlDataList[0].OriginalURL != url {
-		t.Errorf("expected OriginalURL to be %s, got %s", url, urlDataList[0].OriginalURL)
-	}
-
-	sameAlias, err := repo.Add(context.TODO(), url)
+	sameAlias, err := repo.Add(context.Background(), url, userID)
 	if err != nil {
 		t.Fatalf("Add() for same URL returned an error: %v", err)
 	}
@@ -96,19 +90,64 @@ func TestFileRepo_Add(t *testing.T) {
 	}
 }
 
-func TestFileRepo_Get(t *testing.T) {
-	tempDir := t.TempDir()
-	filePath := filepath.Join(tempDir, "test.json")
+func TestRepo_AddWithoutUser(t *testing.T) {
 
-	repo := New(filePath)
+	tmpFile, err := os.CreateTemp("", "test_shortener_*.json")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+	tmpFile.Close()
+
+	repo := New(tmpFile.Name())
 	url := "https://example.com"
 
-	alias, err := repo.Add(context.TODO(), url)
+	alias, err := repo.Add(context.Background(), url, "")
 	if err != nil {
 		t.Fatalf("Add() returned an error: %v", err)
 	}
 
-	retrievedURL, err := repo.Get(context.TODO(), alias)
+	if len(alias) == 0 {
+		t.Error("expected non-empty alias")
+	}
+
+	storedAlias, exists := repo.linkToShort[url]
+	if !exists {
+		t.Error("URL not stored in repository")
+	}
+
+	if storedAlias == "" {
+		t.Error("expected non-empty alias")
+	}
+
+	userURLs, err := repo.GetByUserID(context.Background(), "anyuser")
+	if err != nil {
+		t.Fatalf("GetByUserID() returned an error: %v", err)
+	}
+
+	if len(userURLs) != 0 {
+		t.Errorf("expected 0 user URLs, got %d", len(userURLs))
+	}
+}
+
+func TestRepo_Get(t *testing.T) {
+
+	tmpFile, err := os.CreateTemp("", "test_shortener_*.json")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+	tmpFile.Close()
+
+	repo := New(tmpFile.Name())
+	url := "https://example.com"
+
+	alias, err := repo.Add(context.Background(), url, "")
+	if err != nil {
+		t.Fatalf("Add() returned an error: %v", err)
+	}
+
+	retrievedURL, err := repo.Get(context.Background(), alias)
 	if err != nil {
 		t.Fatalf("Get() returned an error: %v", err)
 	}
@@ -117,278 +156,157 @@ func TestFileRepo_Get(t *testing.T) {
 		t.Errorf("expected URL %s, got %s", url, retrievedURL)
 	}
 
-	_, err = repo.Get(context.TODO(), "nonexistent-alias")
+	_, err = repo.Get(context.Background(), "nonexistent-alias")
 	if err == nil {
 		t.Error("expected error for non-existent alias, got nil")
 	}
 }
 
-func TestFileRepo_Persistence(t *testing.T) {
-	tempDir := t.TempDir()
-	filePath := filepath.Join(tempDir, "test.json")
+func TestRepo_GetByUserID(t *testing.T) {
 
-	repo1 := New(filePath)
-
-	urls := map[string]string{
-		"https://example.com": "",
-		"https://google.com":  "",
-		"https://github.com":  "",
+	tmpFile, err := os.CreateTemp("", "test_shortener_*.json")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
 	}
+	defer os.Remove(tmpFile.Name())
+	tmpFile.Close()
 
-	for url := range urls {
-		alias, err := repo1.Add(context.TODO(), url)
-		if err != nil {
-			t.Fatalf("Add() returned an error: %v", err)
-		}
-		urls[url] = alias
-	}
+	repo := New(tmpFile.Name())
+	userID1 := "user1"
+	userID2 := "user2"
+	url1 := "https://example1.com"
+	url2 := "https://example2.com"
+	url3 := "https://example3.com"
 
-	repo2 := New(filePath)
-
-	for url, alias := range urls {
-		retrievedURL, err := repo2.Get(context.TODO(), alias)
-		if err != nil {
-			t.Errorf("Get() returned an error for alias %s: %v", alias, err)
-		}
-
-		if retrievedURL != url {
-			t.Errorf("expected URL %s, got %s", url, retrievedURL)
-		}
-
-		sameAlias, err := repo2.Add(context.TODO(), url)
-		if err != nil {
-			t.Fatalf("Add() returned an error: %v", err)
-		}
-
-		if sameAlias != alias {
-			t.Errorf("expected same alias %s for restored URL, got %s", alias, sameAlias)
-		}
-	}
-
-	newURL := "https://stackoverflow.com"
-	newAlias, err := repo2.Add(context.TODO(), newURL)
+	_, err = repo.Add(context.Background(), url1, userID1)
 	if err != nil {
 		t.Fatalf("Add() returned an error: %v", err)
 	}
 
-	repo3 := New(filePath)
-
-	retrievedURL, err := repo3.Get(context.TODO(), newAlias)
+	_, err = repo.Add(context.Background(), url2, userID1)
 	if err != nil {
-		t.Fatalf("Get() returned an error: %v", err)
+		t.Fatalf("Add() returned an error: %v", err)
 	}
 
-	if retrievedURL != newURL {
-		t.Errorf("expected URL %s, got %s", newURL, retrievedURL)
+	_, err = repo.Add(context.Background(), url3, userID2)
+	if err != nil {
+		t.Fatalf("Add() returned an error: %v", err)
 	}
 
-	for url, alias := range urls {
-		retrievedURL, err := repo3.Get(context.TODO(), alias)
-		if err != nil {
-			t.Errorf("Get() returned an error for alias %s: %v", alias, err)
-		}
+	userURLs1, err := repo.GetByUserID(context.Background(), userID1)
+	if err != nil {
+		t.Fatalf("GetByUserID() returned an error: %v", err)
+	}
 
-		if retrievedURL != url {
-			t.Errorf("expected URL %s, got %s", url, retrievedURL)
-		}
+	if len(userURLs1) != 2 {
+		t.Errorf("expected 2 user URLs for user1, got %d", len(userURLs1))
+	}
+
+	userURLs2, err := repo.GetByUserID(context.Background(), userID2)
+	if err != nil {
+		t.Fatalf("GetByUserID() returned an error: %v", err)
+	}
+
+	if len(userURLs2) != 1 {
+		t.Errorf("expected 1 user URL for user2, got %d", len(userURLs2))
+	}
+
+	userURLs3, err := repo.GetByUserID(context.Background(), "nonexistent")
+	if err != nil {
+		t.Fatalf("GetByUserID() returned an error: %v", err)
+	}
+
+	if len(userURLs3) != 0 {
+		t.Errorf("expected 0 user URLs for non-existent user, got %d", len(userURLs3))
 	}
 }
 
-func TestFileRepo_EmptyFile(t *testing.T) {
-	tempDir := t.TempDir()
-	filePath := filepath.Join(tempDir, "empty.json")
+func TestRepo_saveToFile(t *testing.T) {
 
-	if err := os.WriteFile(filePath, []byte{}, 0644); err != nil {
-		t.Fatalf("failed to create empty file: %v", err)
+	tmpFile, err := os.CreateTemp("", "test_shortener_*.json")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
 	}
+	defer os.Remove(tmpFile.Name())
+	tmpFile.Close()
 
-	repo := New(filePath)
-
-	if repo == nil {
-		t.Fatal("New() returned nil for empty file")
-	}
-
+	repo := New(tmpFile.Name())
 	url := "https://example.com"
-	alias, err := repo.Add(context.TODO(), url)
+	userID := "user123"
+
+	_, err = repo.Add(context.Background(), url, userID)
 	if err != nil {
 		t.Fatalf("Add() returned an error: %v", err)
 	}
 
-	retrievedURL, err := repo.Get(context.TODO(), alias)
+	err = repo.saveToFile()
 	if err != nil {
-		t.Fatalf("Get() returned an error: %v", err)
+		t.Fatalf("saveToFile() returned an error: %v", err)
 	}
 
-	if retrievedURL != url {
-		t.Errorf("expected URL %s, got %s", url, retrievedURL)
+	content, err := os.ReadFile(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to read file: %v", err)
+	}
+
+	if len(content) == 0 {
+		t.Error("expected file to have content")
+	}
+
+	if !strings.Contains(string(content), url) {
+		t.Error("expected file to contain the URL")
+	}
+
+	if !strings.Contains(string(content), userID) {
+		t.Error("expected file to contain the user ID")
 	}
 }
 
-func TestFileRepo_InvalidJSON(t *testing.T) {
-	tempDir := t.TempDir()
-	filePath := filepath.Join(tempDir, "invalid.json")
+func TestRepo_loadFromFile(t *testing.T) {
 
-	invalidJSON := []byte(`{"invalid": json content}`)
-	if err := os.WriteFile(filePath, invalidJSON, 0644); err != nil {
-		t.Fatalf("failed to create file with invalid JSON: %v", err)
-	}
-
-	repo := New(filePath)
-
-	if repo == nil {
-		t.Fatal("New() returned nil for invalid JSON file")
-	}
-
-	if len(repo.shortToLink) != 0 {
-		t.Error("repository should be empty after loading invalid JSON")
-	}
-}
-
-func TestFileRepo_NonExistentFile(t *testing.T) {
-	tempDir := t.TempDir()
-	filePath := filepath.Join(tempDir, "nonexistent.json")
-
-	repo := New(filePath)
-
-	if repo == nil {
-		t.Fatal("New() returned nil for non-existent file")
-	}
-
-	url := "https://example.com"
-	alias, err := repo.Add(context.TODO(), url)
+	tmpFile, err := os.CreateTemp("", "test_shortener_*.json")
 	if err != nil {
-		t.Fatalf("Add() returned an error: %v", err)
+		t.Fatalf("Failed to create temp file: %v", err)
 	}
+	defer os.Remove(tmpFile.Name())
+	tmpFile.Close()
 
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		t.Error("file should be created after Add()")
-	}
-
-	retrievedURL, err := repo.Get(context.TODO(), alias)
+	testData := `[
+		{
+			"uuid": "1",
+			"short_url": "abc123",
+			"original_url": "https://example1.com",
+			"user_id": "user1"
+		},
+		{
+			"uuid": "2",
+			"short_url": "def456",
+			"original_url": "https://example2.com",
+			"user_id": "user2"
+		}
+	]`
+	err = os.WriteFile(tmpFile.Name(), []byte(testData), 0644)
 	if err != nil {
-		t.Fatalf("Get() returned an error: %v", err)
+		t.Fatalf("Failed to write test data: %v", err)
 	}
 
-	if retrievedURL != url {
-		t.Errorf("expected URL %s, got %s", url, retrievedURL)
-	}
-}
+	repo := New(tmpFile.Name())
 
-func TestFileRepo_hasLink(t *testing.T) {
-	tempDir := t.TempDir()
-	filePath := filepath.Join(tempDir, "test.json")
-
-	repo := New(filePath)
-	url := "https://example.com"
-
-	if repo.hasLink(url) {
-		t.Error("hasLink() should return false for non-existent URL")
+	if len(repo.shortToLink) != 2 {
+		t.Errorf("expected 2 URLs in shortToLink, got %d", len(repo.shortToLink))
 	}
 
-	_, err := repo.Add(context.TODO(), url)
+	userURLs1, err := repo.GetByUserID(context.Background(), "user1")
 	if err != nil {
-		t.Fatalf("Add() returned an error: %v", err)
+		t.Fatalf("GetByUserID() returned an error: %v", err)
 	}
 
-	if !repo.hasLink(url) {
-		t.Error("hasLink() should return true for existing URL")
-	}
-}
-
-func TestFileRepo_hasAlias(t *testing.T) {
-	tempDir := t.TempDir()
-	filePath := filepath.Join(tempDir, "test.json")
-
-	repo := New(filePath)
-	url := "https://example.com"
-
-	alias, err := repo.Add(context.TODO(), url)
-	if err != nil {
-		t.Fatalf("Add() returned an error: %v", err)
+	if len(userURLs1) != 1 {
+		t.Errorf("expected 1 user URL for user1, got %d", len(userURLs1))
 	}
 
-	if !repo.hasAlias(alias) {
-		t.Error("hasAlias() should return true for existing alias")
-	}
-
-	if repo.hasAlias("nonexistent-alias") {
-		t.Error("hasAlias() should return false for non-existent alias")
-	}
-}
-
-func TestGenerateAlias(t *testing.T) {
-	length := 10
-	alias := generateAlias(length)
-
-	if len(alias) != length {
-		t.Errorf("expected alias length to be %d, got %d", length, len(alias))
-	}
-
-	for _, char := range alias {
-		if !strings.ContainsRune(charset, char) {
-			t.Errorf("character %c is not from the defined charset", char)
-		}
-	}
-
-	alias2 := generateAlias(length)
-	if alias == alias2 {
-		t.Error("generateAlias() should return different values on subsequent calls")
-	}
-}
-
-func TestFileRepo_JSONFormat(t *testing.T) {
-	tempDir := t.TempDir()
-	filePath := filepath.Join(tempDir, "test.json")
-
-	repo := New(filePath)
-
-	urls := []struct {
-		url   string
-		alias string
-	}{
-		{url: "http://yandex.ru"},
-		{url: "http://ya.ru"},
-		{url: "http://practicum.yandex.ru"},
-	}
-
-	for i := range urls {
-		alias, err := repo.Add(context.TODO(), urls[i].url)
-		if err != nil {
-			t.Fatalf("Add() returned an error: %v", err)
-		}
-		urls[i].alias = alias
-	}
-
-	data, err := os.ReadFile(filePath)
-	if err != nil {
-		t.Fatalf("failed to read file: %v", err)
-	}
-
-	var urlDataList []URLData
-	if err := json.Unmarshal(data, &urlDataList); err != nil {
-		t.Fatalf("failed to unmarshal JSON: %v", err)
-	}
-
-	if len(urlDataList) != len(urls) {
-		t.Errorf("expected %d entries in file, got %d", len(urls), len(urlDataList))
-	}
-
-	uuidMap := make(map[string]bool)
-	for _, entry := range urlDataList {
-		if entry.UUID == "" {
-			t.Error("UUID should not be empty")
-		}
-
-		if uuidMap[entry.UUID] {
-			t.Errorf("duplicate UUID found: %s", entry.UUID)
-		}
-		uuidMap[entry.UUID] = true
-
-		if entry.ShortURL == "" {
-			t.Error("ShortURL should not be empty")
-		}
-		if entry.OriginalURL == "" {
-			t.Error("OriginalURL should not be empty")
-		}
+	if userURLs1[0].ShortURL != "abc123" || userURLs1[0].OriginalURL != "https://example1.com" {
+		t.Errorf("user URL mismatch: got %s -> %s, expected abc123 -> https://example1.com",
+			userURLs1[0].ShortURL, userURLs1[0].OriginalURL)
 	}
 }

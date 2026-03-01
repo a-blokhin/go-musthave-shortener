@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"go-musthave-shortener/internal/model"
+	"go-musthave-shortener/internal/repository"
 	"math/rand/v2"
 
 	"github.com/google/uuid"
@@ -31,14 +32,14 @@ func New(pool *pgxpool.Pool, logger *zap.Logger) *PostgresRepo {
 	}
 }
 
-func (r *PostgresRepo) Add(ctx context.Context, url string) (string, error) {
+func (r *PostgresRepo) Add(ctx context.Context, url string, userID string) (string, error) {
 	const maxAttempts = 10
 	for range maxAttempts {
 		alias := generateAlias(r.aliasLength)
 
 		_, err := r.pool.Exec(ctx,
-			"INSERT INTO urls (id, short_url, original_url) VALUES ($1, $2, $3)",
-			uuid.New(), alias, url)
+			"INSERT INTO urls (id, short_url, original_url, user_id) VALUES ($1, $2, $3, $4)",
+			uuid.New(), alias, url, userID)
 
 		if err == nil {
 			return alias, nil
@@ -68,7 +69,7 @@ func (r *PostgresRepo) Add(ctx context.Context, url string) (string, error) {
 	return "", errors.New("failed to generate unique alias after maximum attempts")
 }
 
-func (r *PostgresRepo) AddBatch(ctx context.Context, urls []string) ([]string, error) {
+func (r *PostgresRepo) AddBatch(ctx context.Context, urls []string, userID string) ([]string, error) {
 	if len(urls) == 0 {
 		return []string{}, nil
 	}
@@ -84,8 +85,8 @@ func (r *PostgresRepo) AddBatch(ctx context.Context, urls []string) ([]string, e
 
 	existing := make(map[string]string, len(urls))
 	rows, err := tx.Query(ctx,
-		`SELECT original_url, short_url FROM urls WHERE original_url = ANY($1)`,
-		urls,
+		`SELECT original_url, short_url FROM urls WHERE original_url = ANY($1) AND (user_id = $2 OR user_id IS NULL)`,
+		urls, userID,
 	)
 	if err != nil {
 		r.logger.Error("Failed to select existing URLs", zap.Error(err))
@@ -133,8 +134,8 @@ func (r *PostgresRepo) AddBatch(ctx context.Context, urls []string) ([]string, e
 	var b pgx.Batch
 	for _, it := range inserts {
 		b.Queue(
-			"INSERT INTO urls (id, short_url, original_url) VALUES ($1, $2, $3)",
-			it.id, it.alias, it.url,
+			"INSERT INTO urls (id, short_url, original_url, user_id) VALUES ($1, $2, $3, $4)",
+			it.id, it.alias, it.url, userID,
 		)
 	}
 
@@ -175,6 +176,35 @@ func (r *PostgresRepo) Get(ctx context.Context, alias string) (string, error) {
 	}
 
 	return originalURL, nil
+}
+
+func (r *PostgresRepo) GetByUserID(ctx context.Context, userID string) ([]repository.UserURL, error) {
+	rows, err := r.pool.Query(ctx,
+		"SELECT short_url, original_url FROM urls WHERE user_id = $1 ORDER BY created_at DESC",
+		userID,
+	)
+	if err != nil {
+		r.logger.Error("Failed to query URLs by user ID", zap.String("user_id", userID), zap.Error(err))
+		return nil, fmt.Errorf("failed to query URLs by user ID: %w", err)
+	}
+	defer rows.Close()
+
+	var userURLs []repository.UserURL
+	for rows.Next() {
+		var userURL repository.UserURL
+		if err := rows.Scan(&userURL.ShortURL, &userURL.OriginalURL); err != nil {
+			r.logger.Error("Failed to scan user URL", zap.Error(err))
+			return nil, fmt.Errorf("failed to scan user URL: %w", err)
+		}
+		userURLs = append(userURLs, userURL)
+	}
+
+	if err := rows.Err(); err != nil {
+		r.logger.Error("Error during user URLs iteration", zap.Error(err))
+		return nil, fmt.Errorf("error during user URLs iteration: %w", err)
+	}
+
+	return userURLs, nil
 }
 
 func generateAlias(length int) string {
