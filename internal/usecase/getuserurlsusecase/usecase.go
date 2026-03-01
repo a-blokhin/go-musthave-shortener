@@ -2,6 +2,7 @@ package getuserurlsusecase
 
 import (
 	"net/http"
+	"net/url"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -25,10 +26,9 @@ func New(linkRepo LinkRepo, logger *zap.Logger, baseURL string) *Usecase {
 }
 
 func (u *Usecase) Execute(c *gin.Context) {
-	userID, exists := middleware.GetUserID(c)
-	if !exists {
-		u.logger.Error("User ID not found in context")
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+	userID, err := middleware.GetUserID(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": http.StatusText(http.StatusUnauthorized)})
 		return
 	}
 
@@ -37,7 +37,7 @@ func (u *Usecase) Execute(c *gin.Context) {
 		u.logger.Error("Failed to get user URLs",
 			zap.Error(err),
 			zap.String("userID", userID))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": http.StatusText(http.StatusInternalServerError)})
 		return
 	}
 
@@ -52,10 +52,16 @@ func (u *Usecase) Execute(c *gin.Context) {
 	u.logger.Info("User has URLs, returning 200")
 
 	response := make([]repository.UserURL, len(userURLs))
-	for i, url := range userURLs {
+	for i, userURL := range userURLs {
+		expectedResponse, err := url.JoinPath(u.baseURL, userURL.ShortURL)
+		if err != nil {
+			u.logger.Error("Failed to create expected response", zap.Error(err))
+			c.JSON(http.StatusInternalServerError, gin.H{"error": http.StatusText(http.StatusInternalServerError)})
+			return
+		}
 		response[i] = repository.UserURL{
-			ShortURL:    u.baseURL + "/" + url.ShortURL,
-			OriginalURL: url.OriginalURL,
+			ShortURL:    expectedResponse,
+			OriginalURL: userURL.OriginalURL,
 		}
 	}
 

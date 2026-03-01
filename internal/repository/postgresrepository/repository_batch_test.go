@@ -1,7 +1,6 @@
 package postgresrepository
 
 import (
-	"context"
 	"fmt"
 	"sync"
 	"testing"
@@ -22,7 +21,7 @@ func setupTestPostgresRepo(t *testing.T) (*PostgresRepo, func()) {
 		t.Skipf("Skipping PostgreSQL test: cannot connect to database: %v", err)
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	_, err = db.Pool().Exec(ctx, "TRUNCATE TABLE urls RESTART IDENTITY CASCADE")
 	if err != nil {
 		t.Skipf("Skipping PostgreSQL test: cannot prepare database: %v", err)
@@ -45,18 +44,19 @@ func TestPostgresRepo_AddBatch(t *testing.T) {
 
 	repo, cleanup := setupTestPostgresRepo(t)
 	defer cleanup()
+	ctx := t.Context()
 
-	result, err := repo.AddBatch(context.TODO(), []string{}, "test-user")
+	result, err := repo.AddBatch(ctx, []string{}, "test-user")
 	assert.NoError(t, err)
 	assert.Empty(t, result)
 
 	urls := []string{"https://example.com"}
-	result, err = repo.AddBatch(context.TODO(), urls, "test-user")
+	result, err = repo.AddBatch(ctx, urls, "test-user")
 	assert.NoError(t, err)
 	assert.Len(t, result, 1)
 	assert.NotEmpty(t, result[0])
 
-	retrievedURL, err := repo.Get(context.TODO(), result[0])
+	retrievedURL, err := repo.Get(ctx, result[0])
 	assert.NoError(t, err)
 	assert.Equal(t, urls[0], retrievedURL)
 
@@ -65,13 +65,13 @@ func TestPostgresRepo_AddBatch(t *testing.T) {
 		"https://example.com",
 		"https://google.com",
 	}
-	result, err = repo.AddBatch(context.TODO(), urls, "test-user")
+	result, err = repo.AddBatch(ctx, urls, "test-user")
 	assert.NoError(t, err)
 	assert.Len(t, result, 3)
 
 	for i, alias := range result {
 		assert.NotEmpty(t, alias)
-		retrievedURL, err := repo.Get(context.TODO(), alias)
+		retrievedURL, err := repo.Get(ctx, alias)
 		assert.NoError(t, err)
 		assert.Equal(t, urls[i], retrievedURL)
 	}
@@ -90,12 +90,13 @@ func TestPostgresRepo_AddBatch_ExistingURLs(t *testing.T) {
 
 	repo, cleanup := setupTestPostgresRepo(t)
 	defer cleanup()
+	ctx := t.Context()
 
-	originalAlias, err := repo.Add(context.TODO(), "https://example.com", "test-user")
+	originalAlias, err := repo.Add(ctx, "https://example.com", "test-user")
 	assert.NoError(t, err)
 
 	urls := []string{"https://example.com", "https://new-url.com"}
-	result, err := repo.AddBatch(context.TODO(), urls, "test-user")
+	result, err := repo.AddBatch(ctx, urls, "test-user")
 	assert.NoError(t, err)
 	assert.Len(t, result, 2)
 
@@ -104,11 +105,11 @@ func TestPostgresRepo_AddBatch_ExistingURLs(t *testing.T) {
 	assert.NotEmpty(t, result[1])
 	assert.NotEqual(t, originalAlias, result[1])
 
-	retrievedURL1, err := repo.Get(context.TODO(), result[0])
+	retrievedURL1, err := repo.Get(ctx, result[0])
 	assert.NoError(t, err)
 	assert.Equal(t, "https://example.com", retrievedURL1)
 
-	retrievedURL2, err := repo.Get(context.TODO(), result[1])
+	retrievedURL2, err := repo.Get(ctx, result[1])
 	assert.NoError(t, err)
 	assert.Equal(t, "https://new-url.com", retrievedURL2)
 }
@@ -120,6 +121,7 @@ func TestPostgresRepo_AddBatch_DuplicateURLsInBatch(t *testing.T) {
 
 	repo, cleanup := setupTestPostgresRepo(t)
 	defer cleanup()
+	ctx := t.Context()
 
 	urls := []string{
 		"https://example.com",
@@ -127,7 +129,7 @@ func TestPostgresRepo_AddBatch_DuplicateURLsInBatch(t *testing.T) {
 		"https://google.com",
 		"https://example.com",
 	}
-	result, err := repo.AddBatch(context.TODO(), urls, "test-user")
+	result, err := repo.AddBatch(ctx, urls, "test-user")
 	assert.NoError(t, err)
 	assert.Len(t, result, 4)
 
@@ -136,7 +138,7 @@ func TestPostgresRepo_AddBatch_DuplicateURLsInBatch(t *testing.T) {
 	assert.NotEqual(t, result[0], result[2])
 
 	for _, alias := range result {
-		retrievedURL, err := repo.Get(context.TODO(), alias)
+		retrievedURL, err := repo.Get(ctx, alias)
 		assert.NoError(t, err)
 		assert.True(t, retrievedURL == "https://example.com" || retrievedURL == "https://google.com")
 	}
@@ -149,19 +151,20 @@ func TestPostgresRepo_AddBatch_LargeBatch(t *testing.T) {
 
 	repo, cleanup := setupTestPostgresRepo(t)
 	defer cleanup()
+	ctx := t.Context()
 
 	urls := make([]string, 100)
 	for i := 0; i < 100; i++ {
 		urls[i] = fmt.Sprintf("https://example%d.com", i)
 	}
 
-	result, err := repo.AddBatch(context.TODO(), urls, "test-user")
+	result, err := repo.AddBatch(ctx, urls, "test-user")
 	assert.NoError(t, err)
 	assert.Len(t, result, 100)
 
 	for i, alias := range result {
 		assert.NotEmpty(t, alias)
-		retrievedURL, err := repo.Get(context.TODO(), alias)
+		retrievedURL, err := repo.Get(ctx, alias)
 		assert.NoError(t, err)
 		assert.Equal(t, urls[i], retrievedURL)
 	}
@@ -180,6 +183,7 @@ func TestPostgresRepo_AddBatch_ConcurrentAccess(t *testing.T) {
 
 	repo, cleanup := setupTestPostgresRepo(t)
 	defer cleanup()
+	ctx := t.Context()
 
 	var wg sync.WaitGroup
 	results := make([][]string, 10)
@@ -195,7 +199,7 @@ func TestPostgresRepo_AddBatch_ConcurrentAccess(t *testing.T) {
 				urls[j] = fmt.Sprintf("https://concurrent%d-%d.com", index, j)
 			}
 
-			results[index], errors[index] = repo.AddBatch(context.TODO(), urls, "test-user")
+			results[index], errors[index] = repo.AddBatch(ctx, urls, "test-user")
 		}(i)
 	}
 
@@ -211,7 +215,7 @@ func TestPostgresRepo_AddBatch_ConcurrentAccess(t *testing.T) {
 			alias := results[i][j]
 			expectedURL := fmt.Sprintf("https://concurrent%d-%d.com", i, j)
 
-			retrievedURL, err := repo.Get(context.TODO(), alias)
+			retrievedURL, err := repo.Get(ctx, alias)
 			assert.NoError(t, err)
 			assert.Equal(t, expectedURL, retrievedURL)
 		}
@@ -233,6 +237,7 @@ func TestPostgresRepo_AddBatch_ConcurrentSameURLs(t *testing.T) {
 
 	repo, cleanup := setupTestPostgresRepo(t)
 	defer cleanup()
+	ctx := t.Context()
 
 	var wg sync.WaitGroup
 	results := make([][]string, 10)
@@ -245,7 +250,7 @@ func TestPostgresRepo_AddBatch_ConcurrentSameURLs(t *testing.T) {
 			defer wg.Done()
 
 			urls := []string{testURL}
-			results[index], errors[index] = repo.AddBatch(context.TODO(), urls, "test-user")
+			results[index], errors[index] = repo.AddBatch(ctx, urls, "test-user")
 		}(i)
 	}
 
@@ -261,7 +266,7 @@ func TestPostgresRepo_AddBatch_ConcurrentSameURLs(t *testing.T) {
 		assert.Equal(t, firstAlias, results[i][0], "All batches should return the same alias for the same URL")
 	}
 
-	retrievedURL, err := repo.Get(context.TODO(), firstAlias)
+	retrievedURL, err := repo.Get(ctx, firstAlias)
 	assert.NoError(t, err)
 	assert.Equal(t, testURL, retrievedURL)
 }
@@ -273,22 +278,23 @@ func TestPostgresRepo_AddBatch_TransactionHandling(t *testing.T) {
 
 	repo, cleanup := setupTestPostgresRepo(t)
 	defer cleanup()
+	ctx := t.Context()
 
-	initialAlias, err := repo.Add(context.TODO(), "https://initial.com", "test-user")
+	initialAlias, err := repo.Add(ctx, "https://initial.com", "test-user")
 	require.NoError(t, err)
 
 	urls := []string{"https://success1.com", "https://success2.com"}
-	result, err := repo.AddBatch(context.TODO(), urls, "test-user")
+	result, err := repo.AddBatch(ctx, urls, "test-user")
 	assert.NoError(t, err)
 	assert.Len(t, result, 2)
 
 	for i, alias := range result {
-		retrievedURL, err := repo.Get(context.TODO(), alias)
+		retrievedURL, err := repo.Get(ctx, alias)
 		assert.NoError(t, err)
 		assert.Equal(t, urls[i], retrievedURL)
 	}
 
-	retrievedURL, err := repo.Get(context.TODO(), initialAlias)
+	retrievedURL, err := repo.Get(ctx, initialAlias)
 	assert.NoError(t, err)
 	assert.Equal(t, "https://initial.com", retrievedURL)
 }
@@ -300,6 +306,7 @@ func TestPostgresRepo_AddBatch_Isolation(t *testing.T) {
 
 	repo, cleanup := setupTestPostgresRepo(t)
 	defer cleanup()
+	ctx := t.Context()
 
 	var wg sync.WaitGroup
 	results := make([][]string, 5)
@@ -315,7 +322,7 @@ func TestPostgresRepo_AddBatch_Isolation(t *testing.T) {
 				fmt.Sprintf("https://isolation%d-2.com", index),
 			}
 
-			results[index], errors[index] = repo.AddBatch(context.TODO(), urls, "test-user")
+			results[index], errors[index] = repo.AddBatch(ctx, urls, "test-user")
 		}(i)
 	}
 
@@ -331,7 +338,7 @@ func TestPostgresRepo_AddBatch_Isolation(t *testing.T) {
 			alias := results[i][j]
 			expectedURL := fmt.Sprintf("https://isolation%d-%d.com", i, j+1)
 
-			retrievedURL, err := repo.Get(context.TODO(), alias)
+			retrievedURL, err := repo.Get(ctx, alias)
 			assert.NoError(t, err)
 			assert.Equal(t, expectedURL, retrievedURL)
 		}
@@ -353,20 +360,21 @@ func TestPostgresRepo_AddBatch_WithEmptyUserID(t *testing.T) {
 
 	repo, cleanup := setupTestPostgresRepo(t)
 	defer cleanup()
+	ctx := t.Context()
 
 	urls := []string{"https://example1.com", "https://example2.com"}
-	result, err := repo.AddBatch(context.TODO(), urls, "")
+	result, err := repo.AddBatch(ctx, urls, "")
 	assert.NoError(t, err)
 	assert.Len(t, result, 2)
 
 	for i, alias := range result {
 		assert.NotEmpty(t, alias)
-		retrievedURL, err := repo.Get(context.TODO(), alias)
+		retrievedURL, err := repo.Get(ctx, alias)
 		assert.NoError(t, err)
 		assert.Equal(t, urls[i], retrievedURL)
 	}
 
-	userURLs, err := repo.GetByUserID(context.TODO(), "anyuser")
+	userURLs, err := repo.GetByUserID(ctx, "anyuser")
 	assert.NoError(t, err)
 	assert.Empty(t, userURLs)
 }
@@ -378,21 +386,22 @@ func TestPostgresRepo_AddBatch_UserIDAssociation(t *testing.T) {
 
 	repo, cleanup := setupTestPostgresRepo(t)
 	defer cleanup()
+	ctx := t.Context()
 
 	userID1 := "user1"
 	userID2 := "user2"
 
 	urls1 := []string{"https://user1-url1.com", "https://user1-url2.com"}
-	result1, err := repo.AddBatch(context.TODO(), urls1, userID1)
+	result1, err := repo.AddBatch(ctx, urls1, userID1)
 	assert.NoError(t, err)
 	assert.Len(t, result1, 2)
 
 	urls2 := []string{"https://user2-url1.com", "https://user2-url2.com"}
-	result2, err := repo.AddBatch(context.TODO(), urls2, userID2)
+	result2, err := repo.AddBatch(ctx, urls2, userID2)
 	assert.NoError(t, err)
 	assert.Len(t, result2, 2)
 
-	userURLs1, err := repo.GetByUserID(context.TODO(), userID1)
+	userURLs1, err := repo.GetByUserID(ctx, userID1)
 	assert.NoError(t, err)
 	assert.Len(t, userURLs1, 2)
 
@@ -401,7 +410,7 @@ func TestPostgresRepo_AddBatch_UserIDAssociation(t *testing.T) {
 		assert.Equal(t, urls1[i], userURL.OriginalURL)
 	}
 
-	userURLs2, err := repo.GetByUserID(context.TODO(), userID2)
+	userURLs2, err := repo.GetByUserID(ctx, userID2)
 	assert.NoError(t, err)
 	assert.Len(t, userURLs2, 2)
 
@@ -418,32 +427,33 @@ func TestPostgresRepo_AddBatch_ExistingURLsWithDifferentUsers(t *testing.T) {
 
 	repo, cleanup := setupTestPostgresRepo(t)
 	defer cleanup()
+	ctx := t.Context()
 
 	userID1 := "user1"
 	userID2 := "user2"
 
-	originalAlias, err := repo.Add(context.TODO(), "https://shared-url.com", userID1)
+	originalAlias, err := repo.Add(ctx, "https://shared-url.com", userID1)
 	assert.NoError(t, err)
 
 	urls := []string{"https://shared-url.com", "https://user2-exclusive.com"}
-	result, err := repo.AddBatch(context.TODO(), urls, userID2)
+	result, err := repo.AddBatch(ctx, urls, userID2)
 	assert.NoError(t, err)
 	assert.Len(t, result, 2)
 
 	assert.Equal(t, originalAlias, result[0])
 	assert.NotEmpty(t, result[1])
 
-	retrievedURL1, err := repo.Get(context.TODO(), originalAlias)
+	retrievedURL1, err := repo.Get(ctx, originalAlias)
 	assert.NoError(t, err)
 	assert.Equal(t, "https://shared-url.com", retrievedURL1)
 
-	userURLs1, err := repo.GetByUserID(context.TODO(), userID1)
+	userURLs1, err := repo.GetByUserID(ctx, userID1)
 	assert.NoError(t, err)
 	assert.Len(t, userURLs1, 1)
 	assert.Equal(t, originalAlias, userURLs1[0].ShortURL)
 	assert.Equal(t, "https://shared-url.com", userURLs1[0].OriginalURL)
 
-	userURLs2, err := repo.GetByUserID(context.TODO(), userID2)
+	userURLs2, err := repo.GetByUserID(ctx, userID2)
 	assert.NoError(t, err)
 	assert.Len(t, userURLs2, 2)
 }
@@ -455,25 +465,26 @@ func TestPostgresRepo_AddBatch_DuplicateURLError(t *testing.T) {
 
 	repo, cleanup := setupTestPostgresRepo(t)
 	defer cleanup()
+	ctx := t.Context()
 
 	userID := "test-user"
 
-	_, err := repo.Add(context.TODO(), "https://example.com", userID)
+	_, err := repo.Add(ctx, "https://example.com", userID)
 	assert.NoError(t, err)
 
 	urls := []string{"https://example.com", "https://new-url.com"}
-	result, err := repo.AddBatch(context.TODO(), urls, userID)
+	result, err := repo.AddBatch(ctx, urls, userID)
 
 	assert.NoError(t, err)
 	assert.Len(t, result, 2)
 	assert.NotEmpty(t, result[0])
 	assert.NotEmpty(t, result[1])
 
-	retrievedURL1, err := repo.Get(context.TODO(), result[0])
+	retrievedURL1, err := repo.Get(ctx, result[0])
 	assert.NoError(t, err)
 	assert.Equal(t, "https://example.com", retrievedURL1)
 
-	retrievedURL2, err := repo.Get(context.TODO(), result[1])
+	retrievedURL2, err := repo.Get(ctx, result[1])
 	assert.NoError(t, err)
 	assert.Equal(t, "https://new-url.com", retrievedURL2)
 }
@@ -485,6 +496,7 @@ func TestPostgresRepo_AddBatch_CollisionError(t *testing.T) {
 
 	repo, cleanup := setupTestPostgresRepo(t)
 	defer cleanup()
+	ctx := t.Context()
 
 	userID := "test-user"
 
@@ -493,7 +505,7 @@ func TestPostgresRepo_AddBatch_CollisionError(t *testing.T) {
 		urls[i] = fmt.Sprintf("https://collision-test%d.com", i)
 	}
 
-	result, err := repo.AddBatch(context.TODO(), urls, userID)
+	result, err := repo.AddBatch(ctx, urls, userID)
 
 	if err != nil {
 		assert.Contains(t, err.Error(), "collision: batch insert failed due to unique constraint")
@@ -502,7 +514,7 @@ func TestPostgresRepo_AddBatch_CollisionError(t *testing.T) {
 		assert.Len(t, result, 1000)
 
 		for i, alias := range result {
-			retrievedURL, err := repo.Get(context.TODO(), alias)
+			retrievedURL, err := repo.Get(ctx, alias)
 			assert.NoError(t, err)
 			assert.Equal(t, urls[i], retrievedURL)
 		}

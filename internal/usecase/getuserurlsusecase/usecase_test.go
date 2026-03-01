@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -52,13 +53,16 @@ func TestGetUserURLs_Success(t *testing.T) {
 		t.Errorf("expected %d URLs in response, got %d", len(userURLs), len(response))
 	}
 
-	for i, url := range response {
-		expectedShortURL := baseURL + "/" + userURLs[i].ShortURL
-		if url.ShortURL != expectedShortURL {
-			t.Errorf("expected short URL %s, got %s", expectedShortURL, url.ShortURL)
+	for i, userURL := range response {
+		expectedShortURL, err := url.JoinPath(baseURL, userURLs[i].ShortURL)
+		if err != nil {
+			t.Errorf("Failed to create expected short URL: %v", err)
 		}
-		if url.OriginalURL != userURLs[i].OriginalURL {
-			t.Errorf("expected original URL %s, got %s", userURLs[i].OriginalURL, url.OriginalURL)
+		if userURL.ShortURL != expectedShortURL {
+			t.Errorf("expected short URL %s, got %s", expectedShortURL, userURL.ShortURL)
+		}
+		if userURL.OriginalURL != userURLs[i].OriginalURL {
+			t.Errorf("expected original URL %s, got %s", userURLs[i].OriginalURL, userURL.OriginalURL)
 		}
 	}
 

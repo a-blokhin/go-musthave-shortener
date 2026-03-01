@@ -1,7 +1,6 @@
 package shorterrepository
 
 import (
-	"context"
 	"testing"
 )
 
@@ -9,8 +8,9 @@ func TestRepo_AddBatch(t *testing.T) {
 	repo := New()
 	urls := []string{"https://example1.com", "https://example2.com", "https://example3.com"}
 	userID := "user123"
+	ctx := t.Context()
 
-	aliases, err := repo.AddBatch(context.Background(), urls, userID)
+	aliases, err := repo.AddBatch(ctx, urls, userID)
 	if err != nil {
 		t.Fatalf("AddBatch() returned an error: %v", err)
 	}
@@ -33,7 +33,7 @@ func TestRepo_AddBatch(t *testing.T) {
 		}
 	}
 
-	userURLs, err := repo.GetByUserID(context.Background(), userID)
+	userURLs, err := repo.GetByUserID(ctx, userID)
 	if err != nil {
 		t.Fatalf("GetByUserID() returned an error: %v", err)
 	}
@@ -54,8 +54,9 @@ func TestRepo_AddBatchWithEmptyURLs(t *testing.T) {
 	repo := New()
 	urls := []string{}
 	userID := "user123"
+	ctx := t.Context()
 
-	aliases, err := repo.AddBatch(context.Background(), urls, userID)
+	aliases, err := repo.AddBatch(ctx, urls, userID)
 	if err != nil {
 		t.Fatalf("AddBatch() returned an error: %v", err)
 	}
@@ -69,8 +70,9 @@ func TestRepo_AddBatchWithDuplicateURLs(t *testing.T) {
 	repo := New()
 	urls := []string{"https://example1.com", "https://example1.com", "https://example2.com"}
 	userID := "user123"
+	ctx := t.Context()
 
-	aliases, err := repo.AddBatch(context.Background(), urls, userID)
+	aliases, err := repo.AddBatch(ctx, urls, userID)
 	if err != nil {
 		t.Fatalf("AddBatch() returned an error: %v", err)
 	}
@@ -91,8 +93,9 @@ func TestRepo_AddBatchWithDuplicateURLs(t *testing.T) {
 func TestRepo_AddBatchWithoutUser(t *testing.T) {
 	repo := New()
 	urls := []string{"https://example1.com", "https://example2.com"}
+	ctx := t.Context()
 
-	aliases, err := repo.AddBatch(context.Background(), urls, "")
+	aliases, err := repo.AddBatch(ctx, urls, "")
 	if err != nil {
 		t.Fatalf("AddBatch() returned an error: %v", err)
 	}
@@ -101,7 +104,7 @@ func TestRepo_AddBatchWithoutUser(t *testing.T) {
 		t.Errorf("expected %d aliases, got %d", len(urls), len(aliases))
 	}
 
-	userURLs, err := repo.GetByUserID(context.Background(), "anyuser")
+	userURLs, err := repo.GetByUserID(ctx, "anyuser")
 	if err != nil {
 		t.Fatalf("GetByUserID() returned an error: %v", err)
 	}

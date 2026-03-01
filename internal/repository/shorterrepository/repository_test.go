@@ -1,7 +1,6 @@
 package shorterrepository
 
 import (
-	"context"
 	"strings"
 	"testing"
 )
@@ -29,8 +28,9 @@ func TestNew(t *testing.T) {
 func TestRepo_Add(t *testing.T) {
 	repo := New()
 	url := "https://example.com"
+	ctx := t.Context()
 
-	alias, err := repo.Add(context.TODO(), url, "")
+	alias, err := repo.Add(ctx, url, "")
 	if err != nil {
 		t.Fatalf("Add() returned an error: %v", err)
 	}
@@ -47,7 +47,7 @@ func TestRepo_Add(t *testing.T) {
 		t.Error("URL not stored in repository")
 	}
 
-	sameAlias, err := repo.Add(context.TODO(), url, "")
+	sameAlias, err := repo.Add(ctx, url, "")
 	if err != nil {
 		t.Fatalf("Add() for same URL returned an error: %v", err)
 	}
@@ -60,13 +60,14 @@ func TestRepo_Add(t *testing.T) {
 func TestRepo_Get(t *testing.T) {
 	repo := New()
 	url := "https://example.com"
+	ctx := t.Context()
 
-	alias, err := repo.Add(context.TODO(), url, "")
+	alias, err := repo.Add(ctx, url, "")
 	if err != nil {
 		t.Fatalf("Add() returned an error: %v", err)
 	}
 
-	retrievedURL, err := repo.Get(context.TODO(), alias)
+	retrievedURL, err := repo.Get(ctx, alias)
 	if err != nil {
 		t.Fatalf("Get() returned an error: %v", err)
 	}
@@ -75,7 +76,7 @@ func TestRepo_Get(t *testing.T) {
 		t.Errorf("expected URL %s, got %s", url, retrievedURL)
 	}
 
-	_, err = repo.Get(context.TODO(), "nonexistent-alias")
+	_, err = repo.Get(ctx, "nonexistent-alias")
 	if err == nil {
 		t.Error("expected error for non-existent alias, got nil")
 	}
@@ -84,12 +85,13 @@ func TestRepo_Get(t *testing.T) {
 func TestRepo_hasLink(t *testing.T) {
 	repo := New()
 	url := "https://example.com"
+	ctx := t.Context()
 
 	if repo.hasLink(url) {
 		t.Error("hasLink() should return false for non-existent URL")
 	}
 
-	_, err := repo.Add(context.TODO(), url, "")
+	_, err := repo.Add(ctx, url, "")
 	if err != nil {
 		t.Fatalf("Add() returned an error: %v", err)
 	}
@@ -102,8 +104,9 @@ func TestRepo_hasLink(t *testing.T) {
 func TestRepo_hasAlias(t *testing.T) {
 	repo := New()
 	url := "https://example.com"
+	ctx := t.Context()
 
-	alias, err := repo.Add(context.TODO(), url, "")
+	alias, err := repo.Add(ctx, url, "")
 	if err != nil {
 		t.Fatalf("Add() returned an error: %v", err)
 	}

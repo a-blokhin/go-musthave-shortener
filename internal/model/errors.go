@@ -15,3 +15,9 @@ func (e *DuplicateURLError) Error() string {
 func (e *DuplicateURLError) Unwrap() error {
 	return ErrDuplicateURL
 }
+
+type DeletedURLError struct{}
+
+func (DeletedURLError) Error() string { return "url has been deleted" }
+
+var ErrDeletedURL error = DeletedURLError{}

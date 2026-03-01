@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"go-musthave-shortener/internal/model"
 	"go-musthave-shortener/internal/repository"
 	"math/rand/v2"
 	"sync"
@@ -13,6 +14,8 @@ type Repo struct {
 	shortToLink map[string]string
 	linkToShort map[string]string
 	userToURLs  map[string][]repository.UserURL
+	deletedURLs map[string]bool
+	urlOwners   map[string]string
 	mutex       sync.RWMutex
 	aliasLength int
 }
@@ -22,6 +25,8 @@ func New() *Repo {
 		shortToLink: map[string]string{},
 		linkToShort: map[string]string{},
 		userToURLs:  map[string][]repository.UserURL{},
+		deletedURLs: map[string]bool{},
+		urlOwners:   map[string]string{},
 		aliasLength: 8,
 	}
 }
@@ -43,6 +48,7 @@ func (r *Repo) Add(ctx context.Context, url string, userID string) (string, erro
 		if !r.hasAlias(alias) {
 			r.shortToLink[alias] = url
 			r.linkToShort[url] = alias
+			r.urlOwners[alias] = userID
 
 			if userID != "" {
 				userURL := repository.UserURL{
@@ -82,6 +88,7 @@ func (r *Repo) AddBatch(ctx context.Context, urls []string, userID string) ([]st
 			if !r.hasAlias(alias) {
 				r.shortToLink[alias] = url
 				r.linkToShort[url] = alias
+				r.urlOwners[alias] = userID
 
 				if userID != "" {
 					userURL := repository.UserURL{
@@ -112,6 +119,10 @@ func (r *Repo) Get(ctx context.Context, alias string) (string, error) {
 		return "", fmt.Errorf("can't find requested alias %s", alias)
 	}
 
+	if r.deletedURLs[alias] {
+		return "", &model.DeletedURLError{}
+	}
+
 	return r.shortToLink[alias], nil
 }
 
@@ -135,15 +146,41 @@ func (r *Repo) GetByUserID(ctx context.Context, userID string) ([]repository.Use
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 
-	userURLs, exists := r.userToURLs[userID]
-	if !exists {
+	userURLs, ok := r.userToURLs[userID]
+	if !ok {
 		return []repository.UserURL{}, nil
 	}
 
-	result := make([]repository.UserURL, len(userURLs))
-	copy(result, userURLs)
+	var result []repository.UserURL
+	for _, userURL := range userURLs {
+		if !r.deletedURLs[userURL.ShortURL] {
+			result = append(result, userURL)
+		}
+	}
 
 	return result, nil
+}
+
+func (r *Repo) BatchDelete(ctx context.Context, shortURLs []string, userID string) error {
+	if len(shortURLs) == 0 {
+		return nil
+	}
+
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	for _, shortURL := range shortURLs {
+		owner, exists := r.urlOwners[shortURL]
+		if !exists {
+			continue
+		}
+		if owner != userID {
+			continue
+		}
+		r.deletedURLs[shortURL] = true
+	}
+
+	return nil
 }
 
 func generateAlias(length int) string {

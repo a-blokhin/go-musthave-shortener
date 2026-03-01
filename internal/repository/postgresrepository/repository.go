@@ -165,7 +165,8 @@ func (r *PostgresRepo) AddBatch(ctx context.Context, urls []string, userID strin
 
 func (r *PostgresRepo) Get(ctx context.Context, alias string) (string, error) {
 	var originalURL string
-	err := r.pool.QueryRow(ctx, "SELECT original_url FROM urls WHERE short_url = $1", alias).Scan(&originalURL)
+	var isDeleted bool
+	err := r.pool.QueryRow(ctx, "SELECT original_url, is_deleted FROM urls WHERE short_url = $1", alias).Scan(&originalURL, &isDeleted)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -175,12 +176,16 @@ func (r *PostgresRepo) Get(ctx context.Context, alias string) (string, error) {
 		return "", fmt.Errorf("failed to get URL by alias: %w", err)
 	}
 
+	if isDeleted {
+		return "", &model.DeletedURLError{}
+	}
+
 	return originalURL, nil
 }
 
 func (r *PostgresRepo) GetByUserID(ctx context.Context, userID string) ([]repository.UserURL, error) {
 	rows, err := r.pool.Query(ctx,
-		"SELECT short_url, original_url FROM urls WHERE user_id = $1 ORDER BY created_at DESC",
+		"SELECT short_url, original_url FROM urls WHERE user_id = $1 AND is_deleted = FALSE ORDER BY created_at DESC",
 		userID,
 	)
 	if err != nil {
@@ -205,6 +210,22 @@ func (r *PostgresRepo) GetByUserID(ctx context.Context, userID string) ([]reposi
 	}
 
 	return userURLs, nil
+}
+
+func (r *PostgresRepo) BatchDelete(ctx context.Context, shortURLs []string, userID string) error {
+	if len(shortURLs) == 0 {
+		return nil
+	}
+
+	query := "UPDATE urls SET is_deleted = TRUE WHERE short_url = ANY($1) AND user_id = $2 AND is_deleted = FALSE"
+	
+	_, err := r.pool.Exec(ctx, query, shortURLs, userID)
+	if err != nil {
+		r.logger.Error("Failed to batch update URLs as deleted", zap.Error(err))
+		return fmt.Errorf("failed to batch update URLs as deleted: %w", err)
+	}
+
+	return nil
 }
 
 func generateAlias(length int) string {

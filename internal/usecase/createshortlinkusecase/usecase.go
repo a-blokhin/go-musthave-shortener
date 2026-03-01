@@ -44,8 +44,8 @@ func (u *Usecase) Execute(c *gin.Context) {
 		return
 	}
 
-	userID, exists := middleware.GetUserID(c)
-	if !exists {
+	userID, err := middleware.GetUserID(c)
+	if err != nil {
 		userID = ""
 	}
 

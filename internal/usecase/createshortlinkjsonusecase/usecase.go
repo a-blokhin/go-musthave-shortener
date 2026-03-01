@@ -3,6 +3,7 @@ package createshortlinkjsonusecase
 import (
 	"errors"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -35,25 +36,32 @@ func (u *Usecase) Execute(c *gin.Context) {
 		return
 	}
 
-	url := strings.TrimSpace(req.URL)
-	if url == "" {
+	reqURL := strings.TrimSpace(req.URL)
+	if reqURL == "" {
 		u.logger.Info("Empty URL provided in request")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "URL is required"})
 		return
 	}
 
-	userID, exists := middleware.GetUserID(c)
-	if !exists {
+	userID, err := middleware.GetUserID(c)
+	if err != nil {
 		userID = ""
 	}
 
-	alias, err := u.linkRepo.Add(c.Request.Context(), url, userID)
+	alias, err := u.linkRepo.Add(c.Request.Context(), reqURL, userID)
 	if err != nil {
 		var duplicateErr *model.DuplicateURLError
 		if errors.As(err, &duplicateErr) {
 
+			expResp, err := url.JoinPath(u.baseURL, duplicateErr.ExistingShortURL)
+			if err != nil {
+				u.logger.Error("Failed to create expected response", zap.Error(err))
+				c.JSON(http.StatusInternalServerError, gin.H{"error": http.StatusText(http.StatusInternalServerError)})
+				return
+			}
+
 			resp := createshortlinkjsonpkg.Response{
-				Result: u.baseURL + "/" + duplicateErr.ExistingShortURL,
+				Result: expResp,
 			}
 			c.JSON(http.StatusConflict, resp)
 			return
@@ -61,13 +69,20 @@ func (u *Usecase) Execute(c *gin.Context) {
 
 		u.logger.Error("Failed to create short URL",
 			zap.Error(err),
-			zap.String("url", url))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
+			zap.String("url", reqURL))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": http.StatusText(http.StatusInternalServerError)})
+		return
+	}
+
+	expResp, err := url.JoinPath(u.baseURL, alias)
+	if err != nil {
+		u.logger.Error("Failed to create expected response", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": http.StatusText(http.StatusInternalServerError)})
 		return
 	}
 
 	resp := createshortlinkjsonpkg.Response{
-		Result: u.baseURL + "/" + alias,
+		Result: expResp,
 	}
 	c.JSON(http.StatusCreated, resp)
 }

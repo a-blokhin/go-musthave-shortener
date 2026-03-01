@@ -19,6 +19,7 @@ import (
 	"go-musthave-shortener/internal/usecase/createshortlinkbatchusecase"
 	"go-musthave-shortener/internal/usecase/createshortlinkjsonusecase"
 	"go-musthave-shortener/internal/usecase/createshortlinkusecase"
+	"go-musthave-shortener/internal/usecase/deleteurlsusecase"
 	"go-musthave-shortener/internal/usecase/getuserurlsusecase"
 	"go-musthave-shortener/internal/usecase/pingdatabaseusecase"
 	"go-musthave-shortener/internal/usecase/redirectfromshortlinkusecase"
@@ -38,6 +39,7 @@ type DI struct {
 		redirectFromShortLink *redirectfromshortlinkusecase.Usecase
 		getUserURLs           *getuserurlsusecase.Usecase
 		pingDatabase          *pingdatabaseusecase.Usecase
+		deleteURLs            *deleteurlsusecase.Usecase
 	}
 
 	repos struct {
@@ -61,14 +63,16 @@ func (d *DI) Init(config *config.Config) error {
 	if config.DatabaseDSN != "" {
 		db, err := database.New(config.DatabaseDSN)
 		if err != nil {
-			d.logger.Error("Failed to connect to database", zap.Error(err))
 			return err
 		}
 		d.db = db
 		d.logger.Info("Connected to PostgreSQL database")
 	}
 
-	d.initRepos()
+	err = d.initRepos()
+	if err != nil {
+		return err
+	}
 	d.initUsecases()
 	d.initMux()
 	d.initAPI()
@@ -76,13 +80,13 @@ func (d *DI) Init(config *config.Config) error {
 	return nil
 }
 
-func (d *DI) initRepos() {
+func (d *DI) initRepos() error {
 	if d.db != nil {
 		d.logger.Info("Using PostgreSQL database storage")
 
 		migrator := migration.New(d.logger, "migrations")
 		if err := migrator.Up(d.config.DatabaseDSN); err != nil {
-			d.logger.Fatal("Failed to run database migrations", zap.Error(err))
+			return err
 		}
 
 		postgresRepo := postgresrepository.New(d.db.Pool(), d.logger)
@@ -94,6 +98,7 @@ func (d *DI) initRepos() {
 		d.logger.Info("Using in-memory storage")
 		d.repos.shorterRepo = shorterrepository.New()
 	}
+	return nil
 }
 
 func (d *DI) initUsecases() {
@@ -103,6 +108,7 @@ func (d *DI) initUsecases() {
 	d.usecases.redirectFromShortLink = redirectfromshortlinkusecase.New(d.repos.shorterRepo, d.logger)
 	d.usecases.getUserURLs = getuserurlsusecase.New(d.repos.shorterRepo, d.logger, d.config.BaseURL)
 	d.usecases.pingDatabase = pingdatabaseusecase.New(d.db, d.logger)
+	d.usecases.deleteURLs = deleteurlsusecase.New(d.repos.shorterRepo, d.logger, d.config.DeleteURLs)
 }
 
 func (d *DI) initMux() {
@@ -123,6 +129,7 @@ func (d *DI) initAPI() {
 		d.usecases.redirectFromShortLink,
 		d.usecases.pingDatabase,
 		d.usecases.getUserURLs,
+		d.usecases.deleteURLs,
 	)
 	d.api.RegisterHandlers(d.router)
 }
@@ -137,6 +144,10 @@ func (d *DI) StartServer() error {
 }
 
 func (d *DI) StopServer(ctx context.Context) error {
+	if d.usecases.deleteURLs != nil {
+		d.usecases.deleteURLs.Close()
+	}
+
 	// Close database connection
 	if d.db != nil {
 		d.db.Close()

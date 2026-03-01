@@ -1,7 +1,6 @@
 package shorterfilerepository
 
 import (
-	"context"
 	"os"
 	"strings"
 	"testing"
@@ -36,6 +35,7 @@ func TestNew(t *testing.T) {
 }
 
 func TestRepo_Add(t *testing.T) {
+	ctx := t.Context()
 
 	tmpFile, err := os.CreateTemp("", "test_shortener_*.json")
 	if err != nil {
@@ -48,7 +48,7 @@ func TestRepo_Add(t *testing.T) {
 	url := "https://example.com"
 	userID := "user123"
 
-	alias, err := repo.Add(context.Background(), url, userID)
+	alias, err := repo.Add(ctx, url, userID)
 	if err != nil {
 		t.Fatalf("Add() returned an error: %v", err)
 	}
@@ -66,7 +66,7 @@ func TestRepo_Add(t *testing.T) {
 		t.Errorf("expected URL to be %s, got %s", url, storedAlias)
 	}
 
-	userURLs, err := repo.GetByUserID(context.Background(), userID)
+	userURLs, err := repo.GetByUserID(ctx, userID)
 	if err != nil {
 		t.Fatalf("GetByUserID() returned an error: %v", err)
 	}
@@ -80,7 +80,7 @@ func TestRepo_Add(t *testing.T) {
 			userURLs[0].ShortURL, userURLs[0].OriginalURL, alias, url)
 	}
 
-	sameAlias, err := repo.Add(context.Background(), url, userID)
+	sameAlias, err := repo.Add(ctx, url, userID)
 	if err != nil {
 		t.Fatalf("Add() for same URL returned an error: %v", err)
 	}
@@ -91,6 +91,7 @@ func TestRepo_Add(t *testing.T) {
 }
 
 func TestRepo_AddWithoutUser(t *testing.T) {
+	ctx := t.Context()
 
 	tmpFile, err := os.CreateTemp("", "test_shortener_*.json")
 	if err != nil {
@@ -102,7 +103,7 @@ func TestRepo_AddWithoutUser(t *testing.T) {
 	repo := New(tmpFile.Name())
 	url := "https://example.com"
 
-	alias, err := repo.Add(context.Background(), url, "")
+	alias, err := repo.Add(ctx, url, "")
 	if err != nil {
 		t.Fatalf("Add() returned an error: %v", err)
 	}
@@ -120,7 +121,7 @@ func TestRepo_AddWithoutUser(t *testing.T) {
 		t.Error("expected non-empty alias")
 	}
 
-	userURLs, err := repo.GetByUserID(context.Background(), "anyuser")
+	userURLs, err := repo.GetByUserID(ctx, "anyuser")
 	if err != nil {
 		t.Fatalf("GetByUserID() returned an error: %v", err)
 	}
@@ -131,6 +132,7 @@ func TestRepo_AddWithoutUser(t *testing.T) {
 }
 
 func TestRepo_Get(t *testing.T) {
+	ctx := t.Context()
 
 	tmpFile, err := os.CreateTemp("", "test_shortener_*.json")
 	if err != nil {
@@ -142,12 +144,12 @@ func TestRepo_Get(t *testing.T) {
 	repo := New(tmpFile.Name())
 	url := "https://example.com"
 
-	alias, err := repo.Add(context.Background(), url, "")
+	alias, err := repo.Add(ctx, url, "")
 	if err != nil {
 		t.Fatalf("Add() returned an error: %v", err)
 	}
 
-	retrievedURL, err := repo.Get(context.Background(), alias)
+	retrievedURL, err := repo.Get(ctx, alias)
 	if err != nil {
 		t.Fatalf("Get() returned an error: %v", err)
 	}
@@ -156,13 +158,14 @@ func TestRepo_Get(t *testing.T) {
 		t.Errorf("expected URL %s, got %s", url, retrievedURL)
 	}
 
-	_, err = repo.Get(context.Background(), "nonexistent-alias")
+	_, err = repo.Get(ctx, "nonexistent-alias")
 	if err == nil {
 		t.Error("expected error for non-existent alias, got nil")
 	}
 }
 
 func TestRepo_GetByUserID(t *testing.T) {
+	ctx := t.Context()
 
 	tmpFile, err := os.CreateTemp("", "test_shortener_*.json")
 	if err != nil {
@@ -178,22 +181,22 @@ func TestRepo_GetByUserID(t *testing.T) {
 	url2 := "https://example2.com"
 	url3 := "https://example3.com"
 
-	_, err = repo.Add(context.Background(), url1, userID1)
+	_, err = repo.Add(ctx, url1, userID1)
 	if err != nil {
 		t.Fatalf("Add() returned an error: %v", err)
 	}
 
-	_, err = repo.Add(context.Background(), url2, userID1)
+	_, err = repo.Add(ctx, url2, userID1)
 	if err != nil {
 		t.Fatalf("Add() returned an error: %v", err)
 	}
 
-	_, err = repo.Add(context.Background(), url3, userID2)
+	_, err = repo.Add(ctx, url3, userID2)
 	if err != nil {
 		t.Fatalf("Add() returned an error: %v", err)
 	}
 
-	userURLs1, err := repo.GetByUserID(context.Background(), userID1)
+	userURLs1, err := repo.GetByUserID(ctx, userID1)
 	if err != nil {
 		t.Fatalf("GetByUserID() returned an error: %v", err)
 	}
@@ -202,7 +205,7 @@ func TestRepo_GetByUserID(t *testing.T) {
 		t.Errorf("expected 2 user URLs for user1, got %d", len(userURLs1))
 	}
 
-	userURLs2, err := repo.GetByUserID(context.Background(), userID2)
+	userURLs2, err := repo.GetByUserID(ctx, userID2)
 	if err != nil {
 		t.Fatalf("GetByUserID() returned an error: %v", err)
 	}
@@ -211,7 +214,7 @@ func TestRepo_GetByUserID(t *testing.T) {
 		t.Errorf("expected 1 user URL for user2, got %d", len(userURLs2))
 	}
 
-	userURLs3, err := repo.GetByUserID(context.Background(), "nonexistent")
+	userURLs3, err := repo.GetByUserID(ctx, "nonexistent")
 	if err != nil {
 		t.Fatalf("GetByUserID() returned an error: %v", err)
 	}
@@ -222,6 +225,7 @@ func TestRepo_GetByUserID(t *testing.T) {
 }
 
 func TestRepo_saveToFile(t *testing.T) {
+	ctx := t.Context()
 
 	tmpFile, err := os.CreateTemp("", "test_shortener_*.json")
 	if err != nil {
@@ -234,7 +238,7 @@ func TestRepo_saveToFile(t *testing.T) {
 	url := "https://example.com"
 	userID := "user123"
 
-	_, err = repo.Add(context.Background(), url, userID)
+	_, err = repo.Add(ctx, url, userID)
 	if err != nil {
 		t.Fatalf("Add() returned an error: %v", err)
 	}
@@ -263,6 +267,7 @@ func TestRepo_saveToFile(t *testing.T) {
 }
 
 func TestRepo_loadFromFile(t *testing.T) {
+	ctx := t.Context()
 
 	tmpFile, err := os.CreateTemp("", "test_shortener_*.json")
 	if err != nil {
@@ -296,7 +301,7 @@ func TestRepo_loadFromFile(t *testing.T) {
 		t.Errorf("expected 2 URLs in shortToLink, got %d", len(repo.shortToLink))
 	}
 
-	userURLs1, err := repo.GetByUserID(context.Background(), "user1")
+	userURLs1, err := repo.GetByUserID(ctx, "user1")
 	if err != nil {
 		t.Fatalf("GetByUserID() returned an error: %v", err)
 	}

@@ -6,6 +6,7 @@ import (
 	"go-musthave-shortener/internal/usecase/createshortlinkbatchusecase"
 	"go-musthave-shortener/internal/usecase/createshortlinkjsonusecase"
 	"go-musthave-shortener/internal/usecase/createshortlinkusecase"
+	"go-musthave-shortener/internal/usecase/deleteurlsusecase"
 	"go-musthave-shortener/internal/usecase/getuserurlsusecase"
 	"go-musthave-shortener/internal/usecase/pingdatabaseusecase"
 	"go-musthave-shortener/internal/usecase/redirectfromshortlinkusecase"
@@ -22,6 +23,7 @@ type ShortAPI struct {
 	redirectUseCase             *redirectfromshortlinkusecase.Usecase
 	pingDatabase                *pingdatabaseusecase.Usecase
 	getUserURLs                 *getuserurlsusecase.Usecase
+	deleteURLs                  *deleteurlsusecase.Usecase
 }
 
 func New(
@@ -32,6 +34,7 @@ func New(
 	redirectUseCase *redirectfromshortlinkusecase.Usecase,
 	pingDatabase *pingdatabaseusecase.Usecase,
 	getUserURLs *getuserurlsusecase.Usecase,
+	deleteURLs *deleteurlsusecase.Usecase,
 ) *ShortAPI {
 	return &ShortAPI{
 		baseURL:                     baseURL,
@@ -41,6 +44,7 @@ func New(
 		redirectUseCase:             redirectUseCase,
 		pingDatabase:                pingDatabase,
 		getUserURLs:                 getUserURLs,
+		deleteURLs:                  deleteURLs,
 	}
 }
 
@@ -51,4 +55,5 @@ func (api *ShortAPI) RegisterHandlers(router *gin.Engine) {
 	router.GET("/:id", api.redirectUseCase.Execute)
 	router.GET("/ping", api.pingDatabase.Execute)
 	router.GET("/api/user/urls", api.getUserURLs.Execute)
+	router.DELETE("/api/user/urls", api.deleteURLs.Execute)
 }
