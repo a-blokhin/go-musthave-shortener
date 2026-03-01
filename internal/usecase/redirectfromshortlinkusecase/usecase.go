@@ -4,6 +4,8 @@ import (
 	"errors"
 	"net/http"
 
+	"go-musthave-shortener/internal/audit"
+	"go-musthave-shortener/internal/middleware"
 	"go-musthave-shortener/internal/model"
 
 	"github.com/gin-gonic/gin"
@@ -13,12 +15,14 @@ import (
 type Usecase struct {
 	linkRepo LinkRepo
 	logger   *zap.Logger
+	audit    *audit.Service
 }
 
-func New(linkRepo LinkRepo, logger *zap.Logger) *Usecase {
+func New(linkRepo LinkRepo, logger *zap.Logger, audit *audit.Service) *Usecase {
 	return &Usecase{
 		linkRepo: linkRepo,
 		logger:   logger,
+		audit:    audit,
 	}
 }
 
@@ -46,5 +50,14 @@ func (u *Usecase) Execute(c *gin.Context) {
 		return
 	}
 
+	userID, err := middleware.GetUserID(c)
+	if err != nil {
+		userID = ""
+	}
+
 	c.Redirect(http.StatusTemporaryRedirect, originalURL)
+
+	if u.audit != nil {
+		u.audit.Emit(audit.ActionFollow, userID, originalURL)
+	}
 }

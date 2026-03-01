@@ -14,6 +14,8 @@ type Config struct {
 	FileStoragePath string `env:"FILE_STORAGE_PATH"`
 	DatabaseDSN     string `env:"DATABASE_DSN"`
 	DeleteURLs      DeleteURLsConfig
+	AuditFile       string `env:"AUDIT_FILE"`
+	AuditURL        string `env:"AUDIT_URL"`
 }
 
 type DeleteURLsConfig struct {
@@ -29,12 +31,16 @@ func ParseConfig() (config *Config) {
 	defaultBaseURL := "http://localhost:8080"
 	defaultFileStoragePath := ""
 	defaultDatabaseDSN := ""
+	defaultAuditFile := ""
+	defaultAuditURL := ""
 
 	if !flag.Parsed() {
 		serverAddressFlag := flag.String("a", defaultServerAddress, "server address")
 		baseURLFlag := flag.String("b", defaultBaseURL, "base URL for shortened links")
 		fileStoragePathFlag := flag.String("f", defaultFileStoragePath, "path to file storage (JSON format)")
 		databaseDSNFlag := flag.String("d", defaultDatabaseDSN, "database connection string")
+		auditFileFlag := flag.String("audit-file", defaultAuditFile, "path to audit log file")
+		auditURLFlag := flag.String("audit-url", defaultAuditURL, "URL of remote audit server")
 		flag.Parse()
 
 		config = &Config{
@@ -42,6 +48,8 @@ func ParseConfig() (config *Config) {
 			BaseURL:         *baseURLFlag,
 			FileStoragePath: *fileStoragePathFlag,
 			DatabaseDSN:     *databaseDSNFlag,
+			AuditFile:       *auditFileFlag,
+			AuditURL:        *auditURLFlag,
 		}
 	} else {
 		config = &Config{
@@ -49,6 +57,8 @@ func ParseConfig() (config *Config) {
 			BaseURL:         defaultBaseURL,
 			FileStoragePath: defaultFileStoragePath,
 			DatabaseDSN:     defaultDatabaseDSN,
+			AuditFile:       defaultAuditFile,
+			AuditURL:        defaultAuditURL,
 		}
 	}
 
@@ -68,6 +78,12 @@ func ParseConfig() (config *Config) {
 	}
 	if envConfig.DatabaseDSN != "" {
 		config.DatabaseDSN = envConfig.DatabaseDSN
+	}
+	if envConfig.AuditFile != "" {
+		config.AuditFile = envConfig.AuditFile
+	}
+	if envConfig.AuditURL != "" {
+		config.AuditURL = envConfig.AuditURL
 	}
 
 	if envConfig.DeleteURLs.BufferSize != 0 {

@@ -19,7 +19,7 @@ func TestRedirectToOriginalURL_Success(t *testing.T) {
 	mockRepo := mocks.NewLinkRepo(t)
 	mockRepo.On("Get", mock.Anything, testAlias).Return(originalURL, nil)
 
-	usecase := New(mockRepo, zap.NewNop())
+	usecase := New(mockRepo, zap.NewNop(), nil)
 
 	req := httptest.NewRequest("GET", "/"+testAlias, nil)
 	rr := httptest.NewRecorder()
@@ -43,7 +43,7 @@ func TestRedirectToOriginalURL_Success(t *testing.T) {
 func TestRedirectToOriginalURL_EmptyAlias(t *testing.T) {
 	mockRepo := mocks.NewLinkRepo(t)
 
-	usecase := New(mockRepo, zap.NewNop())
+	usecase := New(mockRepo, zap.NewNop(), nil)
 
 	req := httptest.NewRequest("GET", "/", nil)
 	rr := httptest.NewRecorder()
@@ -66,7 +66,7 @@ func TestRedirectToOriginalURL_UsecaseError(t *testing.T) {
 	mockRepo := mocks.NewLinkRepo(t)
 	mockRepo.On("Get", mock.Anything, testAlias).Return("", http.ErrMissingFile)
 
-	usecase := New(mockRepo, zap.NewNop())
+	usecase := New(mockRepo, zap.NewNop(), nil)
 
 	req := httptest.NewRequest("GET", "/"+testAlias, nil)
 	rr := httptest.NewRecorder()
