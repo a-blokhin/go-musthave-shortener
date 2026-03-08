@@ -19,10 +19,10 @@ type Config struct {
 }
 
 type DeleteURLsConfig struct {
-	BufferSize     int           `env:"DELETE_URLS_BUFFER_SIZE"`
-	BatchSize      int           `env:"DELETE_URLS_BATCH_SIZE"`
-	FlushInterval  time.Duration `env:"DELETE_URLS_FLUSH_INTERVAL"`
-	WorkerCount    int           `env:"DELETE_URLS_WORKER_COUNT"`
+	BufferSize    int           `env:"DELETE_URLS_BUFFER_SIZE"`
+	BatchSize     int           `env:"DELETE_URLS_BATCH_SIZE"`
+	FlushInterval time.Duration `env:"DELETE_URLS_FLUSH_INTERVAL"`
+	WorkerCount   int           `env:"DELETE_URLS_WORKER_COUNT"`
 }
 
 func ParseConfig() (config *Config) {
