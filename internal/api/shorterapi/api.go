@@ -1,3 +1,6 @@
+// Package shorterapi provides HTTP handlers for the URL shortener service.
+// It registers routes for creating short links, redirecting to original URLs,
+// and managing user URLs.
 package shorterapi
 
 import (
@@ -48,6 +51,19 @@ func New(
 	}
 }
 
+// RegisterHandlers registers all HTTP handlers for the URL shortener service.
+//
+// It registers the following routes:
+//   - POST / - create a short link from plain text
+//   - POST /api/shorten - create a short link from JSON
+//   - POST /api/shorten/batch - create multiple short links from JSON
+//   - GET /:id - redirect from short link to original URL
+//   - GET /ping - check database connectivity
+//   - GET /api/user/urls - get all URLs for the authenticated user
+//   - DELETE /api/user/urls - delete URLs for the authenticated user
+//
+// Parameters:
+//   - router: the Gin router to register handlers on
 func (api *ShortAPI) RegisterHandlers(router *gin.Engine) {
 	router.POST(createshortlinkpkg.MethodPath, api.createShortLinkUseCase.Execute)
 	router.POST(createshortlinkjsonpkg.MethodPath, api.createShortLinkJSONUseCase.Execute)

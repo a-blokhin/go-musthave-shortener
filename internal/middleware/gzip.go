@@ -1,3 +1,5 @@
+// Package middleware provides HTTP middleware for the URL shortener service.
+// It includes authentication, compression, and logging middleware.
 package middleware
 
 import (
@@ -10,6 +12,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// GzipMiddleware provides gzip compression for HTTP requests and responses.
+// It decompresses gzipped request bodies and compresses response bodies
+// if the client accepts gzip encoding.
+//
+// Returns a Gin middleware function that handles gzip compression.
 func GzipMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if strings.Contains(c.GetHeader("Content-Encoding"), "gzip") {

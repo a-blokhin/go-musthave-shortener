@@ -1,3 +1,4 @@
+// Package audit provides audit logging functionality for the URL shortener service.
 package audit
 
 import (
@@ -7,12 +8,19 @@ import (
 	"go.uber.org/zap"
 )
 
+// Service manages audit event receivers and emits events to all registered receivers.
 type Service struct {
 	receivers []Receiver
 	logger    *zap.Logger
 	mu        sync.RWMutex
 }
 
+// NewService creates a new audit service with the provided logger.
+//
+// Parameters:
+//   - logger: zap logger for logging audit service events
+//
+// Returns a new Service instance ready to receive and emit audit events.
 func NewService(logger *zap.Logger) *Service {
 	return &Service{
 		receivers: make([]Receiver, 0),
@@ -20,6 +28,11 @@ func NewService(logger *zap.Logger) *Service {
 	}
 }
 
+// AddReceiver adds a new receiver to the audit service.
+// The receiver will receive all future audit events.
+//
+// Parameters:
+//   - receiver: the receiver to add (nil receivers are ignored)
 func (s *Service) AddReceiver(receiver Receiver) {
 	if receiver == nil {
 		return
@@ -29,6 +42,14 @@ func (s *Service) AddReceiver(receiver Receiver) {
 	s.receivers = append(s.receivers, receiver)
 }
 
+// Emit creates and sends an audit event to all registered receivers.
+// The event is sent asynchronously to each receiver in a separate goroutine.
+// This method is thread-safe and non-blocking.
+//
+// Parameters:
+//   - action: the action being audited (e.g., "create", "delete", "redirect")
+//   - userID: the user ID performing the action
+//   - url: the URL being acted upon
 func (s *Service) Emit(action, userID, url string) {
 	event := Event{
 		TS:     time.Now().Unix(),
@@ -54,6 +75,9 @@ func (s *Service) Emit(action, userID, url string) {
 	}
 }
 
+// Close closes all receivers that implement the Close() method.
+// This should be called when shutting down the service to ensure
+// all audit events are flushed and resources are released.
 func (s *Service) Close() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
