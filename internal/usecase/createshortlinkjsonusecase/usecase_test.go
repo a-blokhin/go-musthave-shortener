@@ -77,7 +77,7 @@ func TestUsecase_Execute(t *testing.T) {
 			mockRepo := mocks.NewLinkRepo(t)
 			tt.mockSetup(mockRepo)
 
-			usecase := createshortlinkjsonusecase.New(mockRepo, logger, baseURL)
+			usecase := createshortlinkjsonusecase.New(mockRepo, logger, baseURL, nil)
 
 			// Prepare request
 			var body []byte

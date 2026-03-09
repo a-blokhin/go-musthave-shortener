@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
+	"go-musthave-shortener/internal/audit"
 	"go-musthave-shortener/internal/middleware"
 	"go-musthave-shortener/internal/model"
 )
@@ -17,13 +18,15 @@ type Usecase struct {
 	linkRepo LinkRepo
 	logger   *zap.Logger
 	baseURL  string
+	audit    *audit.Service
 }
 
-func New(linkRepo LinkRepo, logger *zap.Logger, baseURL string) *Usecase {
+func New(linkRepo LinkRepo, logger *zap.Logger, baseURL string, audit *audit.Service) *Usecase {
 	return &Usecase{
 		linkRepo: linkRepo,
 		logger:   logger,
 		baseURL:  baseURL,
+		audit:    audit,
 	}
 }
 
@@ -66,4 +69,8 @@ func (u *Usecase) Execute(c *gin.Context) {
 	}
 
 	c.String(http.StatusCreated, u.baseURL+"/"+alias)
+
+	if u.audit != nil {
+		u.audit.Emit(audit.ActionShorten, userID, url)
+	}
 }

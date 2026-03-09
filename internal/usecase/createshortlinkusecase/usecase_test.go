@@ -24,7 +24,7 @@ func TestCreateShortURL_Success(t *testing.T) {
 	mockRepo := mocks.NewLinkRepo(t)
 	mockRepo.On("Add", mock.Anything, testURL, "").Return(expectedAlias, nil)
 
-	usecase := New(mockRepo, zap.NewNop(), baseURL)
+	usecase := New(mockRepo, zap.NewNop(), baseURL, nil)
 
 	body := bytes.NewBufferString(testURL)
 	req := httptest.NewRequest("POST", "/", body)
@@ -57,7 +57,7 @@ func TestCreateShortURL_EmptyURL(t *testing.T) {
 	baseURL := "http://example.com"
 	mockRepo := mocks.NewLinkRepo(t)
 
-	usecase := New(mockRepo, zap.NewNop(), baseURL)
+	usecase := New(mockRepo, zap.NewNop(), baseURL, nil)
 
 	body := bytes.NewBufferString("")
 	req := httptest.NewRequest("POST", "/", body)
@@ -85,7 +85,7 @@ func TestCreateShortURL_UsecaseError(t *testing.T) {
 	mockRepo := mocks.NewLinkRepo(t)
 	mockRepo.On("Add", mock.Anything, testURL, "").Return("", io.EOF)
 
-	usecase := New(mockRepo, zap.NewNop(), baseURL)
+	usecase := New(mockRepo, zap.NewNop(), baseURL, nil)
 
 	body := bytes.NewBufferString(testURL)
 	req := httptest.NewRequest("POST", "/", body)

@@ -8,6 +8,7 @@ import (
 	"go.uber.org/zap"
 
 	"go-musthave-shortener/internal/api/shorterapi"
+	"go-musthave-shortener/internal/audit"
 	"go-musthave-shortener/internal/config"
 	"go-musthave-shortener/internal/database"
 	"go-musthave-shortener/internal/middleware"
@@ -31,6 +32,7 @@ type DI struct {
 	config *config.Config
 	logger *zap.Logger
 	db     *database.DB
+	audit  *audit.Service
 
 	usecases struct {
 		createShortLink       *createshortlinkusecase.Usecase
@@ -73,6 +75,10 @@ func (d *DI) Init(config *config.Config) error {
 	if err != nil {
 		return err
 	}
+	err = d.initAudit()
+	if err != nil {
+		return err
+	}
 	d.initUsecases()
 	d.initMux()
 	d.initAPI()
@@ -101,11 +107,36 @@ func (d *DI) initRepos() error {
 	return nil
 }
 
+func (d *DI) initAudit() error {
+	d.audit = audit.NewService(d.logger)
+
+	if d.config.AuditFile != "" {
+		fileReceiver, err := audit.NewFileReceiver(d.config.AuditFile)
+		if err != nil {
+			return err
+		} else {
+			d.audit.AddReceiver(fileReceiver)
+			d.logger.Info("File audit receiver enabled", zap.String("path", d.config.AuditFile))
+		}
+	}
+
+	if d.config.AuditURL != "" {
+		httpReceiver, err := audit.NewHTTPReceiver(d.config.AuditURL)
+		if err != nil {
+			return err
+		} else {
+			d.audit.AddReceiver(httpReceiver)
+			d.logger.Info("HTTP audit receiver enabled", zap.String("url", d.config.AuditURL))
+		}
+	}
+	return nil
+}
+
 func (d *DI) initUsecases() {
-	d.usecases.createShortLink = createshortlinkusecase.New(d.repos.shorterRepo, d.logger, d.config.BaseURL)
-	d.usecases.createShortLinkJSON = createshortlinkjsonusecase.New(d.repos.shorterRepo, d.logger, d.config.BaseURL)
+	d.usecases.createShortLink = createshortlinkusecase.New(d.repos.shorterRepo, d.logger, d.config.BaseURL, d.audit)
+	d.usecases.createShortLinkJSON = createshortlinkjsonusecase.New(d.repos.shorterRepo, d.logger, d.config.BaseURL, d.audit)
 	d.usecases.createShortLinkBatch = createshortlinkbatchusecase.New(d.repos.shorterRepo, d.logger, d.config.BaseURL)
-	d.usecases.redirectFromShortLink = redirectfromshortlinkusecase.New(d.repos.shorterRepo, d.logger)
+	d.usecases.redirectFromShortLink = redirectfromshortlinkusecase.New(d.repos.shorterRepo, d.logger, d.audit)
 	d.usecases.getUserURLs = getuserurlsusecase.New(d.repos.shorterRepo, d.logger, d.config.BaseURL)
 	d.usecases.pingDatabase = pingdatabaseusecase.New(d.db, d.logger)
 	d.usecases.deleteURLs = deleteurlsusecase.New(d.repos.shorterRepo, d.logger, d.config.DeleteURLs)
@@ -148,7 +179,10 @@ func (d *DI) StopServer(ctx context.Context) error {
 		d.usecases.deleteURLs.Close()
 	}
 
-	// Close database connection
+	if d.audit != nil {
+		d.audit.Close()
+	}
+
 	if d.db != nil {
 		d.db.Close()
 	}
