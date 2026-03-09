@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"net/http"
-	"net/http/pprof"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -115,20 +114,18 @@ func (d *DI) initAudit() error {
 		fileReceiver, err := audit.NewFileReceiver(d.config.AuditFile)
 		if err != nil {
 			return err
-		} else {
-			d.audit.AddReceiver(fileReceiver)
-			d.logger.Info("File audit receiver enabled", zap.String("path", d.config.AuditFile))
 		}
+		d.audit.AddReceiver(fileReceiver)
+		d.logger.Info("File audit receiver enabled", zap.String("path", d.config.AuditFile))
 	}
 
 	if d.config.AuditURL != "" {
 		httpReceiver, err := audit.NewHTTPReceiver(d.config.AuditURL)
 		if err != nil {
 			return err
-		} else {
-			d.audit.AddReceiver(httpReceiver)
-			d.logger.Info("HTTP audit receiver enabled", zap.String("url", d.config.AuditURL))
 		}
+		d.audit.AddReceiver(httpReceiver)
+		d.logger.Info("HTTP audit receiver enabled", zap.String("url", d.config.AuditURL))
 	}
 	return nil
 }
@@ -150,23 +147,6 @@ func (d *DI) initMux() {
 	d.router.Use(middleware.AuthMiddleware(d.logger))
 	d.router.Use(middleware.GzipMiddleware())
 	d.router.Use(middleware.LoggingMiddleware(d.logger))
-
-	// Add pprof endpoints for profiling
-	pprofGroup := d.router.Group("/debug/pprof")
-	{
-		pprofGroup.GET("/", gin.WrapF(http.HandlerFunc(pprof.Index)))
-		pprofGroup.GET("/cmdline", gin.WrapF(http.HandlerFunc(pprof.Cmdline)))
-		pprofGroup.GET("/profile", gin.WrapF(http.HandlerFunc(pprof.Profile)))
-		pprofGroup.POST("/symbol", gin.WrapF(http.HandlerFunc(pprof.Symbol)))
-		pprofGroup.GET("/symbol", gin.WrapF(http.HandlerFunc(pprof.Symbol)))
-		pprofGroup.GET("/trace", gin.WrapF(http.HandlerFunc(pprof.Trace)))
-		pprofGroup.GET("/allocs", gin.WrapF(http.HandlerFunc(pprof.Handler("allocs").ServeHTTP)))
-		pprofGroup.GET("/block", gin.WrapF(http.HandlerFunc(pprof.Handler("block").ServeHTTP)))
-		pprofGroup.GET("/goroutine", gin.WrapF(http.HandlerFunc(pprof.Handler("goroutine").ServeHTTP)))
-		pprofGroup.GET("/heap", gin.WrapF(http.HandlerFunc(pprof.Handler("heap").ServeHTTP)))
-		pprofGroup.GET("/mutex", gin.WrapF(http.HandlerFunc(pprof.Handler("mutex").ServeHTTP)))
-		pprofGroup.GET("/threadcreate", gin.WrapF(http.HandlerFunc(pprof.Handler("threadcreate").ServeHTTP)))
-	}
 }
 
 func (d *DI) initAPI() {

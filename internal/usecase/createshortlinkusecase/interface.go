@@ -6,3 +6,8 @@ import "context"
 type LinkRepo interface {
 	Add(ctx context.Context, url string, userID string) (string, error)
 }
+
+//go:generate mockery --name=AuditEmitter --output=./mocks --outpkg=mocks --with-expecter --filename=audit_emitter_mock.go
+type AuditEmitter interface {
+	Emit(action, userID, url string)
+}

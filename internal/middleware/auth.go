@@ -1,3 +1,5 @@
+// Package middleware provides HTTP middleware for the URL shortener service.
+// It includes authentication, compression, and logging middleware.
 package middleware
 
 import (
@@ -15,6 +17,14 @@ const (
 	cookieExpiration  = 30 * 24 * 60 * 60
 )
 
+// AuthMiddleware provides authentication middleware for the URL shortener service.
+// It generates a new user ID if no session cookie exists, or validates an existing session.
+// The user ID is stored in the Gin context for use in downstream handlers.
+//
+// Parameters:
+//   - logger: zap logger for logging authentication events
+//
+// Returns a Gin middleware function that handles authentication.
 func AuthMiddleware(logger *zap.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		sessionCookie, err := c.Cookie(sessionCookieName)
@@ -48,6 +58,13 @@ func AuthMiddleware(logger *zap.Logger) gin.HandlerFunc {
 	}
 }
 
+// GetUserID retrieves the user ID from the Gin context.
+// This should be called after AuthMiddleware has processed the request.
+//
+// Parameters:
+//   - c: the Gin context containing the user ID
+//
+// Returns the user ID as a string or an error if not found or invalid.
 func GetUserID(c *gin.Context) (string, error) {
 	userID, exists := c.Get(userIDContextKey)
 	if !exists {

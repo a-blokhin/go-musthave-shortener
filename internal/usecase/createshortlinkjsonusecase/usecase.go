@@ -19,10 +19,10 @@ type Usecase struct {
 	linkRepo LinkRepo
 	logger   *zap.Logger
 	baseURL  string
-	audit    *audit.Service
+	audit    AuditEmitter
 }
 
-func New(linkRepo LinkRepo, logger *zap.Logger, baseURL string, audit *audit.Service) *Usecase {
+func New(linkRepo LinkRepo, logger *zap.Logger, baseURL string, audit AuditEmitter) *Usecase {
 	return &Usecase{
 		linkRepo: linkRepo,
 		logger:   logger,
