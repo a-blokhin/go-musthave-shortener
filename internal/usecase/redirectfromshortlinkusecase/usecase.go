@@ -15,10 +15,10 @@ import (
 type Usecase struct {
 	linkRepo LinkRepo
 	logger   *zap.Logger
-	audit    *audit.Service
+	audit    AuditEmitter
 }
 
-func New(linkRepo LinkRepo, logger *zap.Logger, audit *audit.Service) *Usecase {
+func New(linkRepo LinkRepo, logger *zap.Logger, audit AuditEmitter) *Usecase {
 	return &Usecase{
 		linkRepo: linkRepo,
 		logger:   logger,

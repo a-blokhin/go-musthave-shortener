@@ -4,13 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"net/http"
-	"sync"
 )
 
 type HTTPReceiver struct {
 	url    string
 	client *http.Client
-	mu     sync.Mutex
 }
 
 func NewHTTPReceiver(url string) (*HTTPReceiver, error) {
@@ -33,9 +31,6 @@ func (r *HTTPReceiver) Receive(event Event) error {
 	if err != nil {
 		return err
 	}
-
-	r.mu.Lock()
-	defer r.mu.Unlock()
 
 	resp, err := r.client.Post(r.url, "application/json", bytes.NewBuffer(data))
 	if err != nil {
