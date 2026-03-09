@@ -218,7 +218,7 @@ func (r *PostgresRepo) BatchDelete(ctx context.Context, shortURLs []string, user
 	}
 
 	query := "UPDATE urls SET is_deleted = TRUE WHERE short_url = ANY($1) AND user_id = $2 AND is_deleted = FALSE"
-	
+
 	_, err := r.pool.Exec(ctx, query, shortURLs, userID)
 	if err != nil {
 		r.logger.Error("Failed to batch update URLs as deleted", zap.Error(err))
