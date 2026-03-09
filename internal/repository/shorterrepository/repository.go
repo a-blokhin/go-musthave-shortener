@@ -76,6 +76,11 @@ func (r *Repo) AddBatch(ctx context.Context, urls []string, userID string) ([]st
 	result := make([]string, len(urls))
 	const maxAttempts = 10
 
+	var userURLs []repository.UserURL
+	if userID != "" {
+		userURLs = make([]repository.UserURL, 0, len(urls))
+	}
+
 	for i, url := range urls {
 
 		if r.hasLink(url) {
@@ -95,7 +100,7 @@ func (r *Repo) AddBatch(ctx context.Context, urls []string, userID string) ([]st
 						ShortURL:    alias,
 						OriginalURL: url,
 					}
-					r.userToURLs[userID] = append(r.userToURLs[userID], userURL)
+					userURLs = append(userURLs, userURL)
 				}
 
 				result[i] = alias
@@ -106,6 +111,10 @@ func (r *Repo) AddBatch(ctx context.Context, urls []string, userID string) ([]st
 		if result[i] == "" {
 			return nil, errors.New("failed to generate unique alias for one or more URLs")
 		}
+	}
+
+	if userID != "" && len(userURLs) > 0 {
+		r.userToURLs[userID] = append(r.userToURLs[userID], userURLs...)
 	}
 
 	return result, nil
@@ -151,7 +160,7 @@ func (r *Repo) GetByUserID(ctx context.Context, userID string) ([]repository.Use
 		return []repository.UserURL{}, nil
 	}
 
-	var result []repository.UserURL
+	result := make([]repository.UserURL, 0, len(userURLs))
 	for _, userURL := range userURLs {
 		if !r.deletedURLs[userURL.ShortURL] {
 			result = append(result, userURL)
