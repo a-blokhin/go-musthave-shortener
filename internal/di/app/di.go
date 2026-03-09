@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -167,6 +168,13 @@ func (d *DI) StartServer() error {
 	d.httpServer = &http.Server{
 		Addr:    d.config.ServerAddress,
 		Handler: d.router,
+	}
+
+	if d.config.EnableHTTPS {
+		if d.config.SSLCertPath == "" || d.config.SSLKeyPath == "" {
+			return fmt.Errorf("HTTPS is enabled but SSL certificate or key path is not specified")
+		}
+		return d.httpServer.ListenAndServeTLS(d.config.SSLCertPath, d.config.SSLKeyPath)
 	}
 
 	return d.httpServer.ListenAndServe()
