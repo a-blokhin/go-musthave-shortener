@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"syscall"
 	"time"
 
@@ -13,7 +14,13 @@ import (
 	"go-musthave-shortener/internal/di/app"
 )
 
+var buildVersion string
+var buildDate string
+var buildCommit string
+
 func main() {
+	printBuildInfo()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -51,4 +58,34 @@ func main() {
 	}
 
 	log.Println("Server stopped successfully")
+}
+
+func printBuildInfo() {
+	version := buildVersion
+	if version == "" {
+		version = "N/A"
+	}
+	date := buildDate
+	if date == "" {
+		date = "N/A"
+	}
+	commit := buildCommit
+	if commit == "" {
+		commit = "N/A"
+	}
+
+	if info, ok := debug.ReadBuildInfo(); ok {
+		for _, setting := range info.Settings {
+			if setting.Key == "vcs.revision" && commit == "N/A" {
+				commit = setting.Value
+			}
+			if setting.Key == "vcs.time" && date == "N/A" {
+				date = setting.Value
+			}
+		}
+	}
+
+	fmt.Printf("Build version: %s\n", version)
+	fmt.Printf("Build date: %s\n", date)
+	fmt.Printf("Build commit: %s\n", commit)
 }
