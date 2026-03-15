@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 	"os/signal"
 	"runtime/debug"
 	"syscall"
@@ -21,8 +20,8 @@ var buildCommit string
 func main() {
 	printBuildInfo()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	defer stop()
 
 	cfg := config.ParseConfig()
 
@@ -30,9 +29,6 @@ func main() {
 	if err := di.Init(cfg); err != nil {
 		log.Fatalf("Failed to initialize application: %v", err)
 	}
-
-	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
 	errCh := make(chan error, 1)
 
@@ -44,13 +40,13 @@ func main() {
 	}()
 
 	select {
-	case <-stop:
+	case <-ctx.Done():
 		log.Println("Shutting down server gracefully...")
 	case err := <-errCh:
 		log.Printf("Error: %v", err)
 	}
 
-	shutdownCtx, shutdownCancel := context.WithTimeout(ctx, 10*time.Second)
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutdownCancel()
 
 	if err := di.StopServer(shutdownCtx); err != nil {
