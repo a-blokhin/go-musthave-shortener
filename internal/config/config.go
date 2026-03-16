@@ -20,6 +20,9 @@ type Config struct {
 	DeleteURLs      DeleteURLsConfig
 	AuditFile       string `env:"AUDIT_FILE"`
 	AuditURL        string `env:"AUDIT_URL"`
+	EnableHTTPS     bool   `env:"ENABLE_HTTPS"`
+	SSLCertPath     string `env:"SSL_CERT_PATH"`
+	SSLKeyPath      string `env:"SSL_KEY_PATH"`
 }
 
 // DeleteURLsConfig holds configuration for the asynchronous URL deletion feature.
@@ -38,6 +41,9 @@ type DeleteURLsConfig struct {
 //   - b: base URL for shortened links (default: "http://localhost:8080")
 //   - f: path to file storage (JSON format)
 //   - d: database connection string
+//   - s: enable HTTPS (default: false)
+//   - cert-path: path to SSL certificate file
+//   - key-path: path to SSL private key file
 //   - audit-file: path to audit log file
 //   - audit-url: URL of remote audit server
 //
@@ -46,6 +52,9 @@ type DeleteURLsConfig struct {
 //   - BASE_URL: base URL for shortened links
 //   - FILE_STORAGE_PATH: path to file storage
 //   - DATABASE_DSN: database connection string
+//   - ENABLE_HTTPS: enable HTTPS (true/false)
+//   - SSL_CERT_PATH: path to SSL certificate file
+//   - SSL_KEY_PATH: path to SSL private key file
 //   - AUDIT_FILE: path to audit log file
 //   - AUDIT_URL: URL of remote audit server
 //   - DELETE_URLS_BUFFER_SIZE: buffer size for async deletion
@@ -60,6 +69,9 @@ func ParseConfig() (config *Config) {
 	defaultBaseURL := "http://localhost:8080"
 	defaultFileStoragePath := ""
 	defaultDatabaseDSN := ""
+	defaultEnableHTTPS := false
+	defaultSSLCertPath := "cert.pem"
+	defaultSSLKeyPath := "key.pem"
 	defaultAuditFile := ""
 	defaultAuditURL := ""
 
@@ -68,6 +80,9 @@ func ParseConfig() (config *Config) {
 		baseURLFlag := flag.String("b", defaultBaseURL, "base URL for shortened links")
 		fileStoragePathFlag := flag.String("f", defaultFileStoragePath, "path to file storage (JSON format)")
 		databaseDSNFlag := flag.String("d", defaultDatabaseDSN, "database connection string")
+		enableHTTPSFlag := flag.Bool("s", defaultEnableHTTPS, "enable HTTPS")
+		sslCertPathFlag := flag.String("cert-path", defaultSSLCertPath, "path to SSL certificate file")
+		sslKeyPathFlag := flag.String("key-path", defaultSSLKeyPath, "path to SSL private key file")
 		auditFileFlag := flag.String("audit-file", defaultAuditFile, "path to audit log file")
 		auditURLFlag := flag.String("audit-url", defaultAuditURL, "URL of remote audit server")
 		flag.Parse()
@@ -77,6 +92,9 @@ func ParseConfig() (config *Config) {
 			BaseURL:         *baseURLFlag,
 			FileStoragePath: *fileStoragePathFlag,
 			DatabaseDSN:     *databaseDSNFlag,
+			EnableHTTPS:     *enableHTTPSFlag,
+			SSLCertPath:     *sslCertPathFlag,
+			SSLKeyPath:      *sslKeyPathFlag,
 			AuditFile:       *auditFileFlag,
 			AuditURL:        *auditURLFlag,
 		}
@@ -86,6 +104,9 @@ func ParseConfig() (config *Config) {
 			BaseURL:         defaultBaseURL,
 			FileStoragePath: defaultFileStoragePath,
 			DatabaseDSN:     defaultDatabaseDSN,
+			EnableHTTPS:     defaultEnableHTTPS,
+			SSLCertPath:     defaultSSLCertPath,
+			SSLKeyPath:      defaultSSLKeyPath,
 			AuditFile:       defaultAuditFile,
 			AuditURL:        defaultAuditURL,
 		}
@@ -113,6 +134,15 @@ func ParseConfig() (config *Config) {
 	}
 	if envConfig.AuditURL != "" {
 		config.AuditURL = envConfig.AuditURL
+	}
+	if envConfig.EnableHTTPS {
+		config.EnableHTTPS = envConfig.EnableHTTPS
+	}
+	if envConfig.SSLCertPath != "" {
+		config.SSLCertPath = envConfig.SSLCertPath
+	}
+	if envConfig.SSLKeyPath != "" {
+		config.SSLKeyPath = envConfig.SSLKeyPath
 	}
 
 	if envConfig.DeleteURLs.BufferSize != 0 {
