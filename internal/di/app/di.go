@@ -3,11 +3,16 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
+	"google.golang.org/grpc"
 
+	"go-musthave-shortener/api/proto"
+	"go-musthave-shortener/internal/api/grpcapi"
 	"go-musthave-shortener/internal/api/shorterapi"
 	"go-musthave-shortener/internal/audit"
 	"go-musthave-shortener/internal/config"
@@ -24,6 +29,9 @@ import (
 	"go-musthave-shortener/internal/usecase/deleteurlsusecase"
 	"go-musthave-shortener/internal/usecase/getstatsusecase"
 	"go-musthave-shortener/internal/usecase/getuserurlsusecase"
+	"go-musthave-shortener/internal/usecase/grpcexpandurlusecase"
+	"go-musthave-shortener/internal/usecase/grpcgetuserurlsusecase"
+	"go-musthave-shortener/internal/usecase/grpcshortenurlusecase"
 	"go-musthave-shortener/internal/usecase/pingdatabaseusecase"
 	"go-musthave-shortener/internal/usecase/redirectfromshortlinkusecase"
 )
@@ -47,11 +55,19 @@ type DI struct {
 		getStats              *getstatsusecase.Usecase
 	}
 
+	grpcUsecases struct {
+		shortenURL  *grpcshortenurlusecase.Usecase
+		expandURL   *grpcexpandurlusecase.Usecase
+		getUserURLs *grpcgetuserurlsusecase.Usecase
+	}
+
 	repos struct {
 		shorterRepo repository.LinkRepository
 	}
 
 	httpServer *http.Server
+	grpcServer *grpc.Server
+	grpcAPI    *grpcapi.Server
 }
 
 func (d *DI) Init(config *config.Config) error {
@@ -142,6 +158,10 @@ func (d *DI) initUsecases() {
 	d.usecases.pingDatabase = pingdatabaseusecase.New(d.db, d.logger)
 	d.usecases.deleteURLs = deleteurlsusecase.New(d.repos.shorterRepo, d.logger, d.config.DeleteURLs)
 	d.usecases.getStats = getstatsusecase.New(d.repos.shorterRepo, d.logger)
+
+	d.grpcUsecases.shortenURL = grpcshortenurlusecase.New(d.repos.shorterRepo, d.logger, d.config.BaseURL, d.audit)
+	d.grpcUsecases.expandURL = grpcexpandurlusecase.New(d.repos.shorterRepo, d.logger, d.audit)
+	d.grpcUsecases.getUserURLs = grpcgetuserurlsusecase.New(d.repos.shorterRepo, d.logger, d.config.BaseURL)
 }
 
 func (d *DI) initMux() {
@@ -168,6 +188,12 @@ func (d *DI) initAPI() {
 		d.logger,
 	)
 	d.api.RegisterHandlers(d.router)
+
+	d.grpcAPI = grpcapi.New(
+		d.grpcUsecases.shortenURL,
+		d.grpcUsecases.expandURL,
+		d.grpcUsecases.getUserURLs,
+	)
 }
 
 func (d *DI) StartServer() error {
@@ -176,6 +202,21 @@ func (d *DI) StartServer() error {
 		Handler: d.router,
 	}
 
+	d.grpcServer = grpc.NewServer()
+	proto.RegisterShortenerServiceServer(d.grpcServer, d.grpcAPI)
+
+	d.logger.Info("Starting gRPC server", zap.String("address", d.config.GRPCServerAddress))
+	grpcLis, err := net.Listen("tcp", d.config.GRPCServerAddress)
+	if err != nil {
+		return fmt.Errorf("gRPC server listen error: %w", err)
+	}
+	errCh := make(chan error)
+	go func() {
+		err := d.grpcServer.Serve(grpcLis)
+		errCh <- err
+	}()
+
+	d.logger.Info("Starting HTTP server", zap.String("address", d.config.ServerAddress))
 	if d.config.EnableHTTPS {
 		if d.config.SSLCertPath == "" {
 			return errors.New("HTTPS is enabled but SSL certificate is not specified")
@@ -185,8 +226,11 @@ func (d *DI) StartServer() error {
 		}
 		return d.httpServer.ListenAndServeTLS(d.config.SSLCertPath, d.config.SSLKeyPath)
 	}
-
-	return d.httpServer.ListenAndServe()
+	err = d.httpServer.ListenAndServe()
+	if err != nil {
+		return fmt.Errorf("HTTP server listen error: %w", err)
+	}
+	return <-errCh
 }
 
 func (d *DI) StopServer(ctx context.Context) error {
@@ -200,6 +244,10 @@ func (d *DI) StopServer(ctx context.Context) error {
 
 	if d.db != nil {
 		d.db.Close()
+	}
+
+	if d.grpcServer != nil {
+		d.grpcServer.GracefulStop()
 	}
 
 	if d.httpServer != nil {
