@@ -5,11 +5,14 @@ package shorterapi
 
 import (
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 
+	"go-musthave-shortener/internal/middleware"
 	"go-musthave-shortener/internal/usecase/createshortlinkbatchusecase"
 	"go-musthave-shortener/internal/usecase/createshortlinkjsonusecase"
 	"go-musthave-shortener/internal/usecase/createshortlinkusecase"
 	"go-musthave-shortener/internal/usecase/deleteurlsusecase"
+	"go-musthave-shortener/internal/usecase/getstatsusecase"
 	"go-musthave-shortener/internal/usecase/getuserurlsusecase"
 	"go-musthave-shortener/internal/usecase/pingdatabaseusecase"
 	"go-musthave-shortener/internal/usecase/redirectfromshortlinkusecase"
@@ -27,6 +30,9 @@ type ShortAPI struct {
 	pingDatabase                *pingdatabaseusecase.Usecase
 	getUserURLs                 *getuserurlsusecase.Usecase
 	deleteURLs                  *deleteurlsusecase.Usecase
+	getStats                    *getstatsusecase.Usecase
+	trustedSubnet               string
+	logger                      *zap.Logger
 }
 
 func New(
@@ -38,6 +44,9 @@ func New(
 	pingDatabase *pingdatabaseusecase.Usecase,
 	getUserURLs *getuserurlsusecase.Usecase,
 	deleteURLs *deleteurlsusecase.Usecase,
+	getStats *getstatsusecase.Usecase,
+	trustedSubnet string,
+	logger *zap.Logger,
 ) *ShortAPI {
 	return &ShortAPI{
 		baseURL:                     baseURL,
@@ -48,6 +57,9 @@ func New(
 		pingDatabase:                pingDatabase,
 		getUserURLs:                 getUserURLs,
 		deleteURLs:                  deleteURLs,
+		getStats:                    getStats,
+		trustedSubnet:               trustedSubnet,
+		logger:                      logger,
 	}
 }
 
@@ -61,6 +73,7 @@ func New(
 //   - GET /ping - check database connectivity
 //   - GET /api/user/urls - get all URLs for the authenticated user
 //   - DELETE /api/user/urls - delete URLs for the authenticated user
+//   - GET /api/internal/stats - get service statistics (requires trusted subnet)
 //
 // Parameters:
 //   - router: the Gin router to register handlers on
@@ -72,4 +85,12 @@ func (api *ShortAPI) RegisterHandlers(router *gin.Engine) {
 	router.GET("/ping", api.pingDatabase.Execute)
 	router.GET("/api/user/urls", api.getUserURLs.Execute)
 	router.DELETE("/api/user/urls", api.deleteURLs.Execute)
+
+	if api.getStats != nil {
+		if api.trustedSubnet != "" {
+			router.GET("/api/internal/stats", middleware.TrustedSubnetMiddleware(api.trustedSubnet, api.logger), api.getStats.Execute)
+		} else {
+			router.GET("/api/internal/stats", middleware.TrustedSubnetMiddleware("", api.logger), api.getStats.Execute)
+		}
+	}
 }

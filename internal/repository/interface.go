@@ -11,6 +11,12 @@ type UserURL struct {
 	OriginalURL string `json:"original_url"`
 }
 
+// Stats represents statistics about the URL shortener service.
+type Stats struct {
+	URLs  int `json:"urls"`  // Number of shortened URLs
+	Users int `json:"users"` // Number of users
+}
+
 // LinkRepository defines the interface for URL storage operations.
 // Implementations can use in-memory storage, file storage, or database storage.
 type LinkRepository interface {
@@ -64,4 +70,12 @@ type LinkRepository interface {
 	//
 	// Returns an error if the deletion fails.
 	BatchDelete(ctx context.Context, shortURLs []string, userID string) error
+
+	// GetStats returns statistics about the URL shortener service.
+	//
+	// Parameters:
+	//   - ctx: context for the operation
+	//
+	// Returns a Stats struct containing the number of URLs and users, or an error if retrieval fails.
+	GetStats(ctx context.Context) (Stats, error)
 }

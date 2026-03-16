@@ -192,6 +192,23 @@ func (r *Repo) BatchDelete(ctx context.Context, shortURLs []string, userID strin
 	return nil
 }
 
+func (r *Repo) GetStats(ctx context.Context) (repository.Stats, error) {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+
+	users := make(map[string]bool)
+	for _, userID := range r.urlOwners {
+		if userID != "" {
+			users[userID] = true
+		}
+	}
+
+	return repository.Stats{
+		URLs:  len(r.shortToLink),
+		Users: len(users),
+	}, nil
+}
+
 func generateAlias(length int) string {
 	result := make([]byte, length)
 	for i := range result {

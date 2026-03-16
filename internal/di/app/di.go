@@ -22,6 +22,7 @@ import (
 	"go-musthave-shortener/internal/usecase/createshortlinkjsonusecase"
 	"go-musthave-shortener/internal/usecase/createshortlinkusecase"
 	"go-musthave-shortener/internal/usecase/deleteurlsusecase"
+	"go-musthave-shortener/internal/usecase/getstatsusecase"
 	"go-musthave-shortener/internal/usecase/getuserurlsusecase"
 	"go-musthave-shortener/internal/usecase/pingdatabaseusecase"
 	"go-musthave-shortener/internal/usecase/redirectfromshortlinkusecase"
@@ -43,6 +44,7 @@ type DI struct {
 		getUserURLs           *getuserurlsusecase.Usecase
 		pingDatabase          *pingdatabaseusecase.Usecase
 		deleteURLs            *deleteurlsusecase.Usecase
+		getStats              *getstatsusecase.Usecase
 	}
 
 	repos struct {
@@ -139,6 +141,7 @@ func (d *DI) initUsecases() {
 	d.usecases.getUserURLs = getuserurlsusecase.New(d.repos.shorterRepo, d.logger, d.config.BaseURL)
 	d.usecases.pingDatabase = pingdatabaseusecase.New(d.db, d.logger)
 	d.usecases.deleteURLs = deleteurlsusecase.New(d.repos.shorterRepo, d.logger, d.config.DeleteURLs)
+	d.usecases.getStats = getstatsusecase.New(d.repos.shorterRepo, d.logger)
 }
 
 func (d *DI) initMux() {
@@ -160,6 +163,9 @@ func (d *DI) initAPI() {
 		d.usecases.pingDatabase,
 		d.usecases.getUserURLs,
 		d.usecases.deleteURLs,
+		d.usecases.getStats,
+		d.config.TrustedSubnet,
+		d.logger,
 	)
 	d.api.RegisterHandlers(d.router)
 }
