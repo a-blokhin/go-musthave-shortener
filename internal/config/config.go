@@ -1,10 +1,13 @@
 // Package config provides configuration management for the URL shortener service.
-// It supports configuration from command-line flags and environment variables.
+// It supports configuration from JSON config file, command-line flags and environment variables.
+// Priority (lowest to highest): config file < flags < environment variables
 package config
 
 import (
+	"encoding/json"
 	"flag"
 	"log"
+	"os"
 	"time"
 
 	"github.com/caarlos0/env/v11"
@@ -33,10 +36,12 @@ type DeleteURLsConfig struct {
 	WorkerCount   int           `env:"DELETE_URLS_WORKER_COUNT"`
 }
 
-// ParseConfig creates a new Config instance by parsing command-line flags
-// and environment variables. Environment variables take precedence over flags.
+// ParseConfig creates a new Config instance by parsing JSON config file,
+// command-line flags and environment variables.
+// Priority (lowest to highest): config file < flags < environment variables.
 //
 // Supported flags:
+//   - c/-config: path to JSON config file
 //   - a: server address (default: "localhost:8080")
 //   - b: base URL for shortened links (default: "http://localhost:8080")
 //   - f: path to file storage (JSON format)
@@ -48,6 +53,7 @@ type DeleteURLsConfig struct {
 //   - audit-url: URL of remote audit server
 //
 // Supported environment variables:
+//   - CONFIG: path to JSON config file
 //   - SERVER_ADDRESS: server address
 //   - BASE_URL: base URL for shortened links
 //   - FILE_STORAGE_PATH: path to file storage
@@ -62,59 +68,88 @@ type DeleteURLsConfig struct {
 //   - DELETE_URLS_FLUSH_INTERVAL: flush interval for async deletion
 //   - DELETE_URLS_WORKER_COUNT: worker count for async deletion
 //
+// JSON config file format:
+//   {
+//     "server_address": "localhost:8080",
+//     "base_url": "http://localhost",
+//     "file_storage_path": "/path/to/file.db",
+//     "database_dsn": "",
+//     "enable_https": true
+//   }
+//
 // Returns a populated Config instance.
-func ParseConfig() (config *Config) {
-
-	defaultServerAddress := "localhost:8080"
-	defaultBaseURL := "http://localhost:8080"
-	defaultFileStoragePath := ""
-	defaultDatabaseDSN := ""
-	defaultEnableHTTPS := false
-	defaultSSLCertPath := "cert.pem"
-	defaultSSLKeyPath := "key.pem"
-	defaultAuditFile := ""
-	defaultAuditURL := ""
+func ParseConfig() *Config {
+	config := getDefaultConfig()
 
 	if !flag.Parsed() {
-		serverAddressFlag := flag.String("a", defaultServerAddress, "server address")
-		baseURLFlag := flag.String("b", defaultBaseURL, "base URL for shortened links")
-		fileStoragePathFlag := flag.String("f", defaultFileStoragePath, "path to file storage (JSON format)")
-		databaseDSNFlag := flag.String("d", defaultDatabaseDSN, "database connection string")
-		enableHTTPSFlag := flag.Bool("s", defaultEnableHTTPS, "enable HTTPS")
-		sslCertPathFlag := flag.String("cert-path", defaultSSLCertPath, "path to SSL certificate file")
-		sslKeyPathFlag := flag.String("key-path", defaultSSLKeyPath, "path to SSL private key file")
-		auditFileFlag := flag.String("audit-file", defaultAuditFile, "path to audit log file")
-		auditURLFlag := flag.String("audit-url", defaultAuditURL, "URL of remote audit server")
-		flag.Parse()
+		config = applyFlags(config)
+	}
 
-		config = &Config{
-			ServerAddress:   *serverAddressFlag,
-			BaseURL:         *baseURLFlag,
-			FileStoragePath: *fileStoragePathFlag,
-			DatabaseDSN:     *databaseDSNFlag,
-			EnableHTTPS:     *enableHTTPSFlag,
-			SSLCertPath:     *sslCertPathFlag,
-			SSLKeyPath:      *sslKeyPathFlag,
-			AuditFile:       *auditFileFlag,
-			AuditURL:        *auditURLFlag,
-		}
-	} else {
-		config = &Config{
-			ServerAddress:   defaultServerAddress,
-			BaseURL:         defaultBaseURL,
-			FileStoragePath: defaultFileStoragePath,
-			DatabaseDSN:     defaultDatabaseDSN,
-			EnableHTTPS:     defaultEnableHTTPS,
-			SSLCertPath:     defaultSSLCertPath,
-			SSLKeyPath:      defaultSSLKeyPath,
-			AuditFile:       defaultAuditFile,
-			AuditURL:        defaultAuditURL,
+	applyEnvironmentVariables(config)
+
+	return config
+}
+
+// getDefaultConfig returns a Config instance with default values
+func getDefaultConfig() *Config {
+	return &Config{
+		ServerAddress:   "localhost:8080",
+		BaseURL:         "http://localhost:8080",
+		FileStoragePath: "",
+		DatabaseDSN:     "",
+		EnableHTTPS:     false,
+		SSLCertPath:     "cert.pem",
+		SSLKeyPath:      "key.pem",
+		AuditFile:       "",
+		AuditURL:        "",
+	}
+}
+
+// applyFlags parses command-line flags and applies them to the config
+func applyFlags(config *Config) *Config {
+	configFlag := flag.String("c", "", "path to JSON config file")
+	flag.StringVar(configFlag, "config", "", "path to JSON config file")
+	serverAddressFlag := flag.String("a", config.ServerAddress, "server address")
+	baseURLFlag := flag.String("b", config.BaseURL, "base URL for shortened links")
+	fileStoragePathFlag := flag.String("f", config.FileStoragePath, "path to file storage (JSON format)")
+	databaseDSNFlag := flag.String("d", config.DatabaseDSN, "database connection string")
+	enableHTTPSFlag := flag.Bool("s", config.EnableHTTPS, "enable HTTPS")
+	sslCertPathFlag := flag.String("cert-path", config.SSLCertPath, "path to SSL certificate file")
+	sslKeyPathFlag := flag.String("key-path", config.SSLKeyPath, "path to SSL private key file")
+	auditFileFlag := flag.String("audit-file", config.AuditFile, "path to audit log file")
+	auditURLFlag := flag.String("audit-url", config.AuditURL, "URL of remote audit server")
+	flag.Parse()
+
+	// Load config from JSON file (lowest priority)
+	configPath := *configFlag
+	if configPath == "" {
+		configPath = os.Getenv("CONFIG")
+	}
+	if configPath != "" {
+		if fileConfig := loadConfigFromPath(configPath); fileConfig != nil {
+			config = fileConfig
 		}
 	}
 
+	config.ServerAddress = *serverAddressFlag
+	config.BaseURL = *baseURLFlag
+	config.FileStoragePath = *fileStoragePathFlag
+	config.DatabaseDSN = *databaseDSNFlag
+	config.EnableHTTPS = *enableHTTPSFlag
+	config.SSLCertPath = *sslCertPathFlag
+	config.SSLKeyPath = *sslKeyPathFlag
+	config.AuditFile = *auditFileFlag
+	config.AuditURL = *auditURLFlag
+
+	return config
+}
+
+// applyEnvironmentVariables applies environment variables to the config
+func applyEnvironmentVariables(config *Config) {
 	envConfig := &Config{}
 	if err := env.Parse(envConfig); err != nil {
 		log.Printf("Failed to parse environment variables: %v", err)
+		return
 	}
 
 	if envConfig.ServerAddress != "" {
@@ -157,6 +192,37 @@ func ParseConfig() (config *Config) {
 	if envConfig.DeleteURLs.WorkerCount != 0 {
 		config.DeleteURLs.WorkerCount = envConfig.DeleteURLs.WorkerCount
 	}
+}
 
-	return config
+func loadConfigFromPath(path string) *Config {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		log.Printf("Failed to read config file %s: %v", path, err)
+		return nil
+	}
+
+	var fileConfig struct {
+		ServerAddress   string `json:"server_address"`
+		BaseURL         string `json:"base_url"`
+		FileStoragePath string `json:"file_storage_path"`
+		DatabaseDSN     string `json:"database_dsn"`
+		EnableHTTPS     bool   `json:"enable_https"`
+	}
+
+	if err := json.Unmarshal(data, &fileConfig); err != nil {
+		log.Printf("Failed to parse config file %s: %v", path, err)
+		return nil
+	}
+
+	return &Config{
+		ServerAddress:   fileConfig.ServerAddress,
+		BaseURL:         fileConfig.BaseURL,
+		FileStoragePath: fileConfig.FileStoragePath,
+		DatabaseDSN:     fileConfig.DatabaseDSN,
+		EnableHTTPS:     fileConfig.EnableHTTPS,
+		SSLCertPath:     "cert.pem",
+		SSLKeyPath:      "key.pem",
+		AuditFile:       "",
+		AuditURL:        "",
+	}
 }
