@@ -301,6 +301,23 @@ func (r *FileRepo) BatchDelete(ctx context.Context, shortURLs []string, userID s
 	return nil
 }
 
+func (r *FileRepo) GetStats(ctx context.Context) (repository.Stats, error) {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+
+	users := make(map[string]bool)
+	for _, userID := range r.urlOwners {
+		if userID != "" {
+			users[userID] = true
+		}
+	}
+
+	return repository.Stats{
+		URLs:  len(r.shortToLink),
+		Users: len(users),
+	}, nil
+}
+
 func (r *FileRepo) removeUserURL(userID, shortURL string) {
 	if userURLs, exists := r.userToURLs[userID]; exists {
 		for i, userURL := range userURLs {

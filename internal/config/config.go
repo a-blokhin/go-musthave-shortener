@@ -15,18 +15,18 @@ import (
 // Config holds the configuration for the URL shortener service.
 // It can be populated from command-line flags and environment variables.
 type Config struct {
-	ServerAddress     string `mapstructure:"server_address"`
-	GRPCServerAddress string `mapstructure:"grpc_server_address"`
-	BaseURL           string `mapstructure:"base_url"`
-	FileStoragePath   string `mapstructure:"file_storage_path"`
-	DatabaseDSN       string `mapstructure:"database_dsn"`
+	ServerAddress     string `env:"SERVER_ADDRESS"`
+	GRPCServerAddress string `env:"GRPC_SERVER_ADDRESS"`
+	BaseURL           string `env:"BASE_URL"`
+	FileStoragePath   string `env:"FILE_STORAGE_PATH"`
+	DatabaseDSN       string `env:"DATABASE_DSN"`
 	DeleteURLs        DeleteURLsConfig
-	AuditFile         string `mapstructure:"audit_file"`
-	AuditURL          string `mapstructure:"audit_url"`
-	EnableHTTPS       bool   `mapstructure:"enable_https"`
-	SSLCertPath       string `mapstructure:"ssl_cert_path"`
-	SSLKeyPath        string `mapstructure:"ssl_key_path"`
-	TrustedSubnet     string `mapstructure:"trusted_subnet"`
+	AuditFile         string `env:"AUDIT_FILE"`
+	AuditURL          string `env:"AUDIT_URL"`
+	EnableHTTPS       bool   `env:"ENABLE_HTTPS"`
+	SSLCertPath       string `env:"SSL_CERT_PATH"`
+	SSLKeyPath        string `env:"SSL_KEY_PATH"`
+	TrustedSubnet     string `env:"TRUSTED_SUBNET"`
 }
 
 // DeleteURLsConfig holds configuration for the asynchronous URL deletion feature.
@@ -52,6 +52,7 @@ type DeleteURLsConfig struct {
 //   - key-path: path to SSL private key file
 //   - audit-file: path to audit log file
 //   - audit-url: URL of remote audit server
+//   - t: trusted subnet CIDR (e.g., "192.168.1.0/24")
 //
 // Supported environment variables:
 //   - CONFIG: path to JSON config file
@@ -68,6 +69,7 @@ type DeleteURLsConfig struct {
 //   - DELETE_URLS_BATCH_SIZE: batch size for async deletion
 //   - DELETE_URLS_FLUSH_INTERVAL: flush interval for async deletion
 //   - DELETE_URLS_WORKER_COUNT: worker count for async deletion
+//   - TRUSTED_SUBNET: trusted subnet CIDR for internal stats endpoint
 //
 // JSON config file format:
 //
@@ -76,7 +78,8 @@ type DeleteURLsConfig struct {
 //	  "base_url": "http://localhost",
 //	  "file_storage_path": "/path/to/file.db",
 //	  "database_dsn": "",
-//	  "enable_https": true
+//	  "enable_https": true,
+//	  "trusted_subnet": "192.168.1.0/24"
 //	}
 //
 // Returns a populated Config instance.

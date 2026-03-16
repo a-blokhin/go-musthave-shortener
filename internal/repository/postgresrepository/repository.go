@@ -228,6 +228,21 @@ func (r *PostgresRepo) BatchDelete(ctx context.Context, shortURLs []string, user
 	return nil
 }
 
+func (r *PostgresRepo) GetStats(ctx context.Context) (repository.Stats, error) {
+	var stats repository.Stats
+
+	err := r.pool.QueryRow(ctx,
+		"SELECT COUNT(*) as urls, COUNT(DISTINCT user_id) as users FROM urls WHERE user_id IS NOT NULL",
+	).Scan(&stats.URLs, &stats.Users)
+
+	if err != nil {
+		r.logger.Error("Failed to get stats", zap.Error(err))
+		return repository.Stats{}, fmt.Errorf("failed to get stats: %w", err)
+	}
+
+	return stats, nil
+}
+
 func generateAlias(length int) string {
 	result := make([]byte, length)
 	for i := range result {
