@@ -30,7 +30,7 @@ type ShortAPI struct {
 	pingDatabase                *pingdatabaseusecase.Usecase
 	getUserURLs                 *getuserurlsusecase.Usecase
 	deleteURLs                  *deleteurlsusecase.Usecase
-	getStats                    *getstatsusecase.Usecase
+	getStatsHandler             *getstatsusecase.Usecase
 	trustedSubnet               string
 	logger                      *zap.Logger
 }
@@ -44,7 +44,7 @@ func New(
 	pingDatabase *pingdatabaseusecase.Usecase,
 	getUserURLs *getuserurlsusecase.Usecase,
 	deleteURLs *deleteurlsusecase.Usecase,
-	getStats *getstatsusecase.Usecase,
+	getStatsHandler *getstatsusecase.Usecase,
 	trustedSubnet string,
 	logger *zap.Logger,
 ) *ShortAPI {
@@ -57,7 +57,7 @@ func New(
 		pingDatabase:                pingDatabase,
 		getUserURLs:                 getUserURLs,
 		deleteURLs:                  deleteURLs,
-		getStats:                    getStats,
+		getStatsHandler:             getStatsHandler,
 		trustedSubnet:               trustedSubnet,
 		logger:                      logger,
 	}
@@ -86,11 +86,11 @@ func (api *ShortAPI) RegisterHandlers(router *gin.Engine) {
 	router.GET("/api/user/urls", api.getUserURLs.Execute)
 	router.DELETE("/api/user/urls", api.deleteURLs.Execute)
 
-	if api.getStats != nil {
+	if api.getStatsHandler != nil {
 		if api.trustedSubnet != "" {
-			router.GET("/api/internal/stats", middleware.TrustedSubnetMiddleware(api.trustedSubnet, api.logger), api.getStats.Execute)
+			router.GET("/api/internal/stats", middleware.TrustedSubnetMiddleware(api.trustedSubnet, api.logger), api.getStatsHandler.Execute)
 		} else {
-			router.GET("/api/internal/stats", middleware.TrustedSubnetMiddleware("", api.logger), api.getStats.Execute)
+			router.GET("/api/internal/stats", middleware.TrustedSubnetMiddleware("", api.logger), api.getStatsHandler.Execute)
 		}
 	}
 }

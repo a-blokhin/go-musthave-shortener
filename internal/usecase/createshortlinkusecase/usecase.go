@@ -1,7 +1,6 @@
 package createshortlinkusecase
 
 import (
-	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -9,24 +8,19 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
-	"go-musthave-shortener/internal/audit"
-	"go-musthave-shortener/internal/middleware"
-	"go-musthave-shortener/internal/model"
+	"go-musthave-shortener/internal/auth"
+	"go-musthave-shortener/internal/usecase/shortenurlusecase"
 )
 
 type Usecase struct {
-	linkRepo LinkRepo
-	logger   *zap.Logger
-	baseURL  string
-	audit    AuditEmitter
+	shortenURLUsecase *shortenurlusecase.ShortenURLUsecase
+	logger            *zap.Logger
 }
 
-func New(linkRepo LinkRepo, logger *zap.Logger, baseURL string, audit AuditEmitter) *Usecase {
+func New(shortenURLUsecase *shortenurlusecase.ShortenURLUsecase, logger *zap.Logger) *Usecase {
 	return &Usecase{
-		linkRepo: linkRepo,
-		logger:   logger,
-		baseURL:  baseURL,
-		audit:    audit,
+		shortenURLUsecase: shortenURLUsecase,
+		logger:            logger,
 	}
 }
 
@@ -47,20 +41,13 @@ func (u *Usecase) Execute(c *gin.Context) {
 		return
 	}
 
-	userID, err := middleware.GetUserID(c)
+	userID, err := auth.GetUserIDFromGinContext(c)
 	if err != nil {
 		userID = ""
 	}
 
-	alias, err := u.linkRepo.Add(c.Request.Context(), url, userID)
+	result, err := u.shortenURLUsecase.Execute(c.Request.Context(), url, userID)
 	if err != nil {
-		var duplicateErr *model.DuplicateURLError
-		if errors.As(err, &duplicateErr) {
-
-			c.String(http.StatusConflict, u.baseURL+"/"+duplicateErr.ExistingShortURL)
-			return
-		}
-
 		u.logger.Error("Failed to create short URL",
 			zap.Error(err),
 			zap.String("url", url))
@@ -68,9 +55,5 @@ func (u *Usecase) Execute(c *gin.Context) {
 		return
 	}
 
-	c.String(http.StatusCreated, u.baseURL+"/"+alias)
-
-	if u.audit != nil {
-		u.audit.Emit(audit.ActionShorten, userID, url)
-	}
+	c.String(http.StatusCreated, result)
 }

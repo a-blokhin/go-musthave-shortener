@@ -3,17 +3,17 @@
 package middleware
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+
+	"go-musthave-shortener/internal/auth"
 )
 
 const (
 	sessionCookieName = "session"
-	userIDContextKey  = "userID"
 	cookieExpiration  = 30 * 24 * 60 * 60
 )
 
@@ -31,7 +31,7 @@ func AuthMiddleware(logger *zap.Logger) gin.HandlerFunc {
 		if err != nil {
 			newUserID := uuid.New().String()
 			c.SetCookie(sessionCookieName, newUserID, cookieExpiration, "/", "", false, true)
-			c.Set(userIDContextKey, newUserID)
+			c.Set(auth.UserIDContextKey, newUserID)
 			logger.Info("Generated new user session",
 				zap.String("userID", newUserID))
 
@@ -50,31 +50,10 @@ func AuthMiddleware(logger *zap.Logger) gin.HandlerFunc {
 			})
 			return
 		}
-		c.Set(userIDContextKey, userID.String())
+		c.Set(auth.UserIDContextKey, userID.String())
 		logger.Debug("Validated existing user session",
 			zap.String("userID", userID.String()))
 
 		c.Next()
 	}
-}
-
-// GetUserID retrieves the user ID from the Gin context.
-// This should be called after AuthMiddleware has processed the request.
-//
-// Parameters:
-//   - c: the Gin context containing the user ID
-//
-// Returns the user ID as a string or an error if not found or invalid.
-func GetUserID(c *gin.Context) (string, error) {
-	userID, exists := c.Get(userIDContextKey)
-	if !exists {
-		return "", fmt.Errorf("user ID not found in context")
-	}
-
-	id, ok := userID.(string)
-	if !ok {
-		return "", fmt.Errorf("invalid user ID type in context")
-	}
-
-	return id, nil
 }

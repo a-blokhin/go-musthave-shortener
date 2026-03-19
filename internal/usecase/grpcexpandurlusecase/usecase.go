@@ -2,34 +2,30 @@ package grpcexpandurlusecase
 
 import (
 	"context"
-	"errors"
 
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
 	"go-musthave-shortener/api/proto"
-	"go-musthave-shortener/internal/audit"
-	"go-musthave-shortener/internal/model"
+	"go-musthave-shortener/internal/auth"
+	"go-musthave-shortener/internal/usecase/expandurlusecase"
 )
 
 type Usecase struct {
-	linkRepo LinkRepo
-	logger   *zap.Logger
-	audit    AuditEmitter
+	expandURLUsecase *expandurlusecase.ExpandURLUsecase
+	logger           *zap.Logger
 }
 
-func New(linkRepo LinkRepo, logger *zap.Logger, audit AuditEmitter) *Usecase {
+func New(expandURLUsecase *expandurlusecase.ExpandURLUsecase, logger *zap.Logger) *Usecase {
 	return &Usecase{
-		linkRepo: linkRepo,
-		logger:   logger,
-		audit:    audit,
+		expandURLUsecase: expandURLUsecase,
+		logger:           logger,
 	}
 }
 
 func (u *Usecase) Execute(ctx context.Context, req *proto.URLExpandRequest) (*proto.URLExpandResponse, error) {
-	userID, err := getUserIDFromContext(ctx)
+	userID, err := auth.GetUserIDFromGRPCContext(ctx)
 	if err != nil {
 		userID = ""
 	}
@@ -40,44 +36,15 @@ func (u *Usecase) Execute(ctx context.Context, req *proto.URLExpandRequest) (*pr
 		return nil, status.Error(codes.InvalidArgument, "ID is required")
 	}
 
-	originalURL, err := u.linkRepo.Get(ctx, alias)
+	result, err := u.expandURLUsecase.Execute(ctx, alias, userID)
 	if err != nil {
-		u.logger.Info("URL not found for alias",
-			zap.String("alias", alias),
-			zap.Error(err))
-
-		var deletedErr *model.DeletedURLError
-		if errors.As(err, &deletedErr) {
-			return nil, status.Error(codes.NotFound, "URL has been deleted")
-		}
-
-		return nil, status.Error(codes.NotFound, "URL not found")
-	}
-
-	if u.audit != nil {
-		u.audit.Emit(audit.ActionFollow, userID, originalURL)
+		u.logger.Error("Failed to expand URL",
+			zap.Error(err),
+			zap.String("alias", alias))
+		return nil, status.Error(codes.NotFound, err.Error())
 	}
 
 	return &proto.URLExpandResponse{
-		Result: originalURL,
+		Result: result,
 	}, nil
-}
-
-func getUserIDFromContext(ctx context.Context) (string, error) {
-	md, ok := metadata.FromIncomingContext(ctx)
-	if !ok {
-		return "", errors.New("no metadata in context")
-	}
-
-	authHeaders := md.Get("authorization")
-	if len(authHeaders) == 0 {
-		return "", errors.New("no authorization header")
-	}
-
-	authHeader := authHeaders[0]
-	if authHeader == "" {
-		return "", errors.New("empty authorization header")
-	}
-
-	return authHeader, nil
 }

@@ -1,13 +1,12 @@
 package createshortlinkbatchusecase
 
 import (
+	"go-musthave-shortener/internal/auth"
 	"net/http"
 	"net/url"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
-
-	"go-musthave-shortener/internal/middleware"
 )
 
 type Usecase struct {
@@ -48,7 +47,7 @@ func (u *Usecase) Execute(c *gin.Context) {
 		return
 	}
 
-	userID, err := middleware.GetUserID(c)
+	userID, err := auth.GetUserIDFromGinContext(c)
 	if err != nil {
 		userID = ""
 	}

@@ -2,38 +2,35 @@ package grpcgetuserurlsusecase
 
 import (
 	"context"
-	"errors"
-	"net/url"
 
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
 	"go-musthave-shortener/api/proto"
+	"go-musthave-shortener/internal/auth"
+	"go-musthave-shortener/internal/usecase/getuserurlsusecasegeneric"
 )
 
 type Usecase struct {
-	linkRepo LinkRepo
-	logger   *zap.Logger
-	baseURL  string
+	getUserURLsUsecase *getuserurlsusecasegeneric.GetUserURLsUsecase
+	logger             *zap.Logger
 }
 
-func New(linkRepo LinkRepo, logger *zap.Logger, baseURL string) *Usecase {
+func New(getUserURLsUsecase *getuserurlsusecasegeneric.GetUserURLsUsecase, logger *zap.Logger) *Usecase {
 	return &Usecase{
-		linkRepo: linkRepo,
-		logger:   logger,
-		baseURL:  baseURL,
+		getUserURLsUsecase: getUserURLsUsecase,
+		logger:             logger,
 	}
 }
 
 func (u *Usecase) Execute(ctx context.Context) (*proto.UserURLsResponse, error) {
-	userID, err := getUserIDFromContext(ctx)
+	userID, err := auth.GetUserIDFromGRPCContext(ctx)
 	if err != nil {
 		return nil, status.Error(codes.Unauthenticated, "unauthorized")
 	}
 
-	userURLs, err := u.linkRepo.GetByUserID(ctx, userID)
+	userURLs, err := u.getUserURLsUsecase.Execute(ctx, userID)
 	if err != nil {
 		u.logger.Error("Failed to get user URLs",
 			zap.Error(err),
@@ -45,13 +42,8 @@ func (u *Usecase) Execute(ctx context.Context) (*proto.UserURLsResponse, error) 
 
 	response := make([]*proto.URLData, len(userURLs))
 	for i, userURL := range userURLs {
-		expectedResponse, err := url.JoinPath(u.baseURL, userURL.ShortURL)
-		if err != nil {
-			u.logger.Error("Failed to create response", zap.Error(err))
-			return nil, status.Error(codes.Internal, "failed to create response")
-		}
 		response[i] = &proto.URLData{
-			ShortUrl:    expectedResponse,
+			ShortUrl:    userURL.ShortURL,
 			OriginalUrl: userURL.OriginalURL,
 		}
 	}
@@ -59,23 +51,4 @@ func (u *Usecase) Execute(ctx context.Context) (*proto.UserURLsResponse, error) 
 	return &proto.UserURLsResponse{
 		Url: response,
 	}, nil
-}
-
-func getUserIDFromContext(ctx context.Context) (string, error) {
-	md, ok := metadata.FromIncomingContext(ctx)
-	if !ok {
-		return "", errors.New("no metadata in context")
-	}
-
-	authHeaders := md.Get("authorization")
-	if len(authHeaders) == 0 {
-		return "", errors.New("no authorization header")
-	}
-
-	authHeader := authHeaders[0]
-	if authHeader == "" {
-		return "", errors.New("empty authorization header")
-	}
-
-	return authHeader, nil
 }

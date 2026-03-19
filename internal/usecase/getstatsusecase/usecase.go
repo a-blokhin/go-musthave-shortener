@@ -6,26 +6,28 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
+
+	"go-musthave-shortener/internal/usecase/getstatsusecasegeneric"
 )
 
 type Usecase struct {
-	repo   StatsRepository
-	logger *zap.Logger
+	getStatsUsecase *getstatsusecasegeneric.GetStatsUsecase
+	logger          *zap.Logger
 }
 
-func New(repo StatsRepository, logger *zap.Logger) *Usecase {
+func NewHTTPHandler(getStatsUsecase *getstatsusecasegeneric.GetStatsUsecase, logger *zap.Logger) *Usecase {
 	return &Usecase{
-		repo:   repo,
-		logger: logger,
+		getStatsUsecase: getStatsUsecase,
+		logger:          logger,
 	}
 }
 
-func (u *Usecase) Execute(c *gin.Context) {
+func (h *Usecase) Execute(c *gin.Context) {
 	ctx := context.Background()
 
-	stats, err := u.repo.GetStats(ctx)
+	stats, err := h.getStatsUsecase.Execute(ctx)
 	if err != nil {
-		u.logger.Error("Failed to get stats", zap.Error(err))
+		h.logger.Error("Failed to get stats", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get stats"})
 		return
 	}

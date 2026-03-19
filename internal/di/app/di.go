@@ -27,13 +27,17 @@ import (
 	"go-musthave-shortener/internal/usecase/createshortlinkjsonusecase"
 	"go-musthave-shortener/internal/usecase/createshortlinkusecase"
 	"go-musthave-shortener/internal/usecase/deleteurlsusecase"
+	"go-musthave-shortener/internal/usecase/expandurlusecase"
 	"go-musthave-shortener/internal/usecase/getstatsusecase"
+	"go-musthave-shortener/internal/usecase/getstatsusecasegeneric"
 	"go-musthave-shortener/internal/usecase/getuserurlsusecase"
+	"go-musthave-shortener/internal/usecase/getuserurlsusecasegeneric"
 	"go-musthave-shortener/internal/usecase/grpcexpandurlusecase"
 	"go-musthave-shortener/internal/usecase/grpcgetuserurlsusecase"
 	"go-musthave-shortener/internal/usecase/grpcshortenurlusecase"
 	"go-musthave-shortener/internal/usecase/pingdatabaseusecase"
 	"go-musthave-shortener/internal/usecase/redirectfromshortlinkusecase"
+	"go-musthave-shortener/internal/usecase/shortenurlusecase"
 )
 
 type DI struct {
@@ -52,13 +56,20 @@ type DI struct {
 		getUserURLs           *getuserurlsusecase.Usecase
 		pingDatabase          *pingdatabaseusecase.Usecase
 		deleteURLs            *deleteurlsusecase.Usecase
-		getStats              *getstatsusecase.Usecase
+		getStatsHandler       *getstatsusecase.Usecase
 	}
 
 	grpcUsecases struct {
 		shortenURL  *grpcshortenurlusecase.Usecase
 		expandURL   *grpcexpandurlusecase.Usecase
 		getUserURLs *grpcgetuserurlsusecase.Usecase
+	}
+
+	genericUsecases struct {
+		shortenURL  *shortenurlusecase.ShortenURLUsecase
+		expandURL   *expandurlusecase.ExpandURLUsecase
+		getUserURLs *getuserurlsusecasegeneric.GetUserURLsUsecase
+		getStats    *getstatsusecasegeneric.GetStatsUsecase
 	}
 
 	repos struct {
@@ -150,18 +161,23 @@ func (d *DI) initAudit() error {
 }
 
 func (d *DI) initUsecases() {
-	d.usecases.createShortLink = createshortlinkusecase.New(d.repos.shorterRepo, d.logger, d.config.BaseURL, d.audit)
+	d.genericUsecases.shortenURL = shortenurlusecase.New(d.repos.shorterRepo, d.logger, d.config.BaseURL, d.audit)
+	d.genericUsecases.expandURL = expandurlusecase.New(d.repos.shorterRepo, d.logger, d.audit)
+	d.genericUsecases.getUserURLs = getuserurlsusecasegeneric.New(d.repos.shorterRepo, d.logger, d.config.BaseURL)
+	d.genericUsecases.getStats = getstatsusecasegeneric.New(d.repos.shorterRepo, d.logger)
+
+	d.usecases.createShortLink = createshortlinkusecase.New(d.genericUsecases.shortenURL, d.logger)
 	d.usecases.createShortLinkJSON = createshortlinkjsonusecase.New(d.repos.shorterRepo, d.logger, d.config.BaseURL, d.audit)
 	d.usecases.createShortLinkBatch = createshortlinkbatchusecase.New(d.repos.shorterRepo, d.logger, d.config.BaseURL)
-	d.usecases.redirectFromShortLink = redirectfromshortlinkusecase.New(d.repos.shorterRepo, d.logger, d.audit)
-	d.usecases.getUserURLs = getuserurlsusecase.New(d.repos.shorterRepo, d.logger, d.config.BaseURL)
+	d.usecases.redirectFromShortLink = redirectfromshortlinkusecase.New(d.genericUsecases.expandURL, d.logger)
+	d.usecases.getUserURLs = getuserurlsusecase.New(d.genericUsecases.getUserURLs, d.logger)
 	d.usecases.pingDatabase = pingdatabaseusecase.New(d.db, d.logger)
 	d.usecases.deleteURLs = deleteurlsusecase.New(d.repos.shorterRepo, d.logger, d.config.DeleteURLs)
-	d.usecases.getStats = getstatsusecase.New(d.repos.shorterRepo, d.logger)
+	d.usecases.getStatsHandler = getstatsusecase.NewHTTPHandler(d.genericUsecases.getStats, d.logger)
 
-	d.grpcUsecases.shortenURL = grpcshortenurlusecase.New(d.repos.shorterRepo, d.logger, d.config.BaseURL, d.audit)
-	d.grpcUsecases.expandURL = grpcexpandurlusecase.New(d.repos.shorterRepo, d.logger, d.audit)
-	d.grpcUsecases.getUserURLs = grpcgetuserurlsusecase.New(d.repos.shorterRepo, d.logger, d.config.BaseURL)
+	d.grpcUsecases.shortenURL = grpcshortenurlusecase.New(d.genericUsecases.shortenURL, d.logger)
+	d.grpcUsecases.expandURL = grpcexpandurlusecase.New(d.genericUsecases.expandURL, d.logger)
+	d.grpcUsecases.getUserURLs = grpcgetuserurlsusecase.New(d.genericUsecases.getUserURLs, d.logger)
 }
 
 func (d *DI) initMux() {
@@ -183,7 +199,7 @@ func (d *DI) initAPI() {
 		d.usecases.pingDatabase,
 		d.usecases.getUserURLs,
 		d.usecases.deleteURLs,
-		d.usecases.getStats,
+		d.usecases.getStatsHandler,
 		d.config.TrustedSubnet,
 		d.logger,
 	)
