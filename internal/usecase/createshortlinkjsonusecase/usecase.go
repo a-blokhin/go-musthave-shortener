@@ -10,7 +10,7 @@ import (
 	"go.uber.org/zap"
 
 	"go-musthave-shortener/internal/audit"
-	"go-musthave-shortener/internal/middleware"
+	"go-musthave-shortener/internal/auth"
 	"go-musthave-shortener/internal/model"
 	"go-musthave-shortener/pkg/createshortlinkjsonpkg"
 )
@@ -46,7 +46,7 @@ func (u *Usecase) Execute(c *gin.Context) {
 		return
 	}
 
-	userID, err := middleware.GetUserID(c)
+	userID, err := auth.GetUserIDFromGinContext(c)
 	if err != nil {
 		userID = ""
 	}

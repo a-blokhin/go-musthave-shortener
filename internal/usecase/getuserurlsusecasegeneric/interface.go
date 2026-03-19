@@ -1,4 +1,4 @@
-package getuserurlsusecase
+package getuserurlsusecasegeneric
 
 import (
 	"context"

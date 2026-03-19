@@ -3,11 +3,16 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
+	"google.golang.org/grpc"
 
+	"go-musthave-shortener/api/proto"
+	"go-musthave-shortener/internal/api/grpcapi"
 	"go-musthave-shortener/internal/api/shorterapi"
 	"go-musthave-shortener/internal/audit"
 	"go-musthave-shortener/internal/config"
@@ -22,9 +27,17 @@ import (
 	"go-musthave-shortener/internal/usecase/createshortlinkjsonusecase"
 	"go-musthave-shortener/internal/usecase/createshortlinkusecase"
 	"go-musthave-shortener/internal/usecase/deleteurlsusecase"
+	"go-musthave-shortener/internal/usecase/expandurlusecase"
+	"go-musthave-shortener/internal/usecase/getstatsusecase"
+	"go-musthave-shortener/internal/usecase/getstatsusecasegeneric"
 	"go-musthave-shortener/internal/usecase/getuserurlsusecase"
+	"go-musthave-shortener/internal/usecase/getuserurlsusecasegeneric"
+	"go-musthave-shortener/internal/usecase/grpcexpandurlusecase"
+	"go-musthave-shortener/internal/usecase/grpcgetuserurlsusecase"
+	"go-musthave-shortener/internal/usecase/grpcshortenurlusecase"
 	"go-musthave-shortener/internal/usecase/pingdatabaseusecase"
 	"go-musthave-shortener/internal/usecase/redirectfromshortlinkusecase"
+	"go-musthave-shortener/internal/usecase/shortenurlusecase"
 )
 
 type DI struct {
@@ -43,6 +56,20 @@ type DI struct {
 		getUserURLs           *getuserurlsusecase.Usecase
 		pingDatabase          *pingdatabaseusecase.Usecase
 		deleteURLs            *deleteurlsusecase.Usecase
+		getStatsHandler       *getstatsusecase.Usecase
+	}
+
+	grpcUsecases struct {
+		shortenURL  *grpcshortenurlusecase.Usecase
+		expandURL   *grpcexpandurlusecase.Usecase
+		getUserURLs *grpcgetuserurlsusecase.Usecase
+	}
+
+	genericUsecases struct {
+		shortenURL  *shortenurlusecase.ShortenURLUsecase
+		expandURL   *expandurlusecase.ExpandURLUsecase
+		getUserURLs *getuserurlsusecasegeneric.GetUserURLsUsecase
+		getStats    *getstatsusecasegeneric.GetStatsUsecase
 	}
 
 	repos struct {
@@ -50,6 +77,8 @@ type DI struct {
 	}
 
 	httpServer *http.Server
+	grpcServer *grpc.Server
+	grpcAPI    *grpcapi.Server
 }
 
 func (d *DI) Init(config *config.Config) error {
@@ -132,13 +161,23 @@ func (d *DI) initAudit() error {
 }
 
 func (d *DI) initUsecases() {
-	d.usecases.createShortLink = createshortlinkusecase.New(d.repos.shorterRepo, d.logger, d.config.BaseURL, d.audit)
+	d.genericUsecases.shortenURL = shortenurlusecase.New(d.repos.shorterRepo, d.logger, d.config.BaseURL, d.audit)
+	d.genericUsecases.expandURL = expandurlusecase.New(d.repos.shorterRepo, d.logger, d.audit)
+	d.genericUsecases.getUserURLs = getuserurlsusecasegeneric.New(d.repos.shorterRepo, d.logger, d.config.BaseURL)
+	d.genericUsecases.getStats = getstatsusecasegeneric.New(d.repos.shorterRepo, d.logger)
+
+	d.usecases.createShortLink = createshortlinkusecase.New(d.genericUsecases.shortenURL, d.logger)
 	d.usecases.createShortLinkJSON = createshortlinkjsonusecase.New(d.repos.shorterRepo, d.logger, d.config.BaseURL, d.audit)
 	d.usecases.createShortLinkBatch = createshortlinkbatchusecase.New(d.repos.shorterRepo, d.logger, d.config.BaseURL)
-	d.usecases.redirectFromShortLink = redirectfromshortlinkusecase.New(d.repos.shorterRepo, d.logger, d.audit)
-	d.usecases.getUserURLs = getuserurlsusecase.New(d.repos.shorterRepo, d.logger, d.config.BaseURL)
+	d.usecases.redirectFromShortLink = redirectfromshortlinkusecase.New(d.genericUsecases.expandURL, d.logger)
+	d.usecases.getUserURLs = getuserurlsusecase.New(d.genericUsecases.getUserURLs, d.logger)
 	d.usecases.pingDatabase = pingdatabaseusecase.New(d.db, d.logger)
 	d.usecases.deleteURLs = deleteurlsusecase.New(d.repos.shorterRepo, d.logger, d.config.DeleteURLs)
+	d.usecases.getStatsHandler = getstatsusecase.NewHTTPHandler(d.genericUsecases.getStats, d.logger)
+
+	d.grpcUsecases.shortenURL = grpcshortenurlusecase.New(d.genericUsecases.shortenURL, d.logger)
+	d.grpcUsecases.expandURL = grpcexpandurlusecase.New(d.genericUsecases.expandURL, d.logger)
+	d.grpcUsecases.getUserURLs = grpcgetuserurlsusecase.New(d.genericUsecases.getUserURLs, d.logger)
 }
 
 func (d *DI) initMux() {
@@ -160,8 +199,17 @@ func (d *DI) initAPI() {
 		d.usecases.pingDatabase,
 		d.usecases.getUserURLs,
 		d.usecases.deleteURLs,
+		d.usecases.getStatsHandler,
+		d.config.TrustedSubnet,
+		d.logger,
 	)
 	d.api.RegisterHandlers(d.router)
+
+	d.grpcAPI = grpcapi.New(
+		d.grpcUsecases.shortenURL,
+		d.grpcUsecases.expandURL,
+		d.grpcUsecases.getUserURLs,
+	)
 }
 
 func (d *DI) StartServer() error {
@@ -170,6 +218,21 @@ func (d *DI) StartServer() error {
 		Handler: d.router,
 	}
 
+	d.grpcServer = grpc.NewServer()
+	proto.RegisterShortenerServiceServer(d.grpcServer, d.grpcAPI)
+
+	d.logger.Info("Starting gRPC server", zap.String("address", d.config.GRPCServerAddress))
+	grpcLis, err := net.Listen("tcp", d.config.GRPCServerAddress)
+	if err != nil {
+		return fmt.Errorf("gRPC server listen error: %w", err)
+	}
+	errCh := make(chan error)
+	go func() {
+		err := d.grpcServer.Serve(grpcLis)
+		errCh <- err
+	}()
+
+	d.logger.Info("Starting HTTP server", zap.String("address", d.config.ServerAddress))
 	if d.config.EnableHTTPS {
 		if d.config.SSLCertPath == "" {
 			return errors.New("HTTPS is enabled but SSL certificate is not specified")
@@ -179,8 +242,11 @@ func (d *DI) StartServer() error {
 		}
 		return d.httpServer.ListenAndServeTLS(d.config.SSLCertPath, d.config.SSLKeyPath)
 	}
-
-	return d.httpServer.ListenAndServe()
+	err = d.httpServer.ListenAndServe()
+	if err != nil {
+		return fmt.Errorf("HTTP server listen error: %w", err)
+	}
+	return <-errCh
 }
 
 func (d *DI) StopServer(ctx context.Context) error {
@@ -194,6 +260,10 @@ func (d *DI) StopServer(ctx context.Context) error {
 
 	if d.db != nil {
 		d.db.Close()
+	}
+
+	if d.grpcServer != nil {
+		d.grpcServer.GracefulStop()
 	}
 
 	if d.httpServer != nil {
